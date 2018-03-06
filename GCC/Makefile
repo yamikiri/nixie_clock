@@ -154,7 +154,7 @@ CFLAGS += -I$(SOURCE_DIR)/driver/board/linkit7697_hdk/ept/inc
 
 # BLE include path
 CFLAGS += -D__BT_DEBUG__
-CFLAGS += -I$(SOURCE_DIR)/$(APP_PATH)/src/ut_app
+# CFLAGS += -I$(SOURCE_DIR)/$(APP_PATH)/src/ut_app
 CFLAGS += -I$(SOURCE_DIR)/middleware/MTK/bluetooth/inc
 
 ###################################################
