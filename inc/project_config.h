@@ -48,3 +48,8 @@
 #define APP_BLE_DEVICE_NAME           "BLE_SERIAL"
 
 #define APP_BLE_SERVICE_UUID          (0x18AA)
+
+#define VFIFO_SIZE                    (256)
+#define SEND_THRESHOLD_SIZE           (8)
+#define RECEIVE_THRESHOLD_SIZE        (8)
+#define RECEIVE_ALERT_SIZE            (30)

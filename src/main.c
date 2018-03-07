@@ -65,6 +65,7 @@
 
 /* hal */
 #include "nvdm.h"
+#include "hal.h"
 
 /* Create the log control block as user wishes. Here we use 'template' as module name.
  * User needs to define their own log control blocks as project needs.
@@ -267,6 +268,62 @@ static void app_btnotify_init(void)
 
 extern void bt_common_init(void);
 
+#define HIGH_PART_ADDR      (0x70 >> 1)
+#define LOW_PART_ADDR       (0x72 >> 1)
+volatile uint32_t i2c_finish_flag = 0;
+
+/**
+*@brief User defined callback. This function will be called after I2C send or receive data each time..
+*@param None.
+*@return None.
+*/
+static void i2c_callback(uint8_t slave_address, hal_i2c_callback_event_t event, void *user_data)
+{
+    LOG_D(app, "\r\nI2C callback function!\r\n");
+    i2c_finish_flag = 1;
+}
+
+/**
+*@brief  In this function, we send datum to EEPROM and read them back to verify the success of i2c communication with EEPROM.
+*@param None.
+*@return None.
+*/
+static void pcf8574_write(uint8_t high, uint8_t low)
+{
+
+    hal_i2c_config_t i2c_init;
+    hal_i2c_frequency_t input_frequency = HAL_I2C_FREQUENCY_100K;
+    hal_i2c_port_t i2c_port = HAL_I2C_MASTER_0;
+    uint32_t test_fail = 0;
+
+    i2c_init.frequency = input_frequency;
+    if (HAL_I2C_STATUS_OK != hal_i2c_master_init(i2c_port, &i2c_init)) {
+        LOG_E(app, "I2C initialize1 failed");
+        return;
+    }
+    /* Register callback function */
+    if (HAL_I2C_STATUS_OK != hal_i2c_master_register_callback(i2c_port, i2c_callback, NULL)) {
+        LOG_E(app, "I2C register1 callback failed");
+        return;
+    }
+    if (HAL_I2C_STATUS_OK != hal_i2c_master_send_dma(i2c_port, HIGH_PART_ADDR, &high, 1)) {
+        LOG_E(app, "I2C send1 failed");
+        return;
+    }
+    if (HAL_I2C_STATUS_OK != hal_i2c_master_send_dma(i2c_port, LOW_PART_ADDR, &low, 1)) {
+        LOG_E(app, "I2C send2 failed");
+        return;
+    }
+
+    /* Deinitialize I2C */
+    while (0 == i2c_finish_flag);
+    i2c_finish_flag = 0;
+    if (HAL_I2C_STATUS_OK != hal_i2c_master_deinit(i2c_port)) {
+        LOG_E(app, "I2C deinitialize1 failed");
+        return;
+    }
+}
+
 #include "hal.h"
 #include "sntp.h"
 #include <time.h>
@@ -306,6 +363,41 @@ static void _timezone_shift(hal_rtc_time_t* t, int offset_hour)
     t->rtc_sec = nt->tm_sec;
 }
 
+static void set7seg(uint8_t d)
+{
+    uint8_t tmp = d;
+    int32_t i = 0;
+    uint8_t r[4] = {0};
+
+    for(i = 0;i < 4; i++) {
+        r[i] = tmp % 2;
+        tmp = tmp >> 1;
+    }
+    if (r[0]) {
+        hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_HIGH);
+    } else {
+        hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_LOW);
+    }
+
+    if (r[1]) {
+        hal_gpio_set_output(HAL_GPIO_29, HAL_GPIO_DATA_HIGH);
+    } else {
+        hal_gpio_set_output(HAL_GPIO_29, HAL_GPIO_DATA_LOW);
+    }
+
+    if (r[2]) {
+        hal_gpio_set_output(HAL_GPIO_30, HAL_GPIO_DATA_HIGH);
+    } else {
+        hal_gpio_set_output(HAL_GPIO_30, HAL_GPIO_DATA_LOW);
+    }
+
+    if (r[3]) {
+        hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_HIGH);
+    } else {
+        hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
+    }
+}
+
 static void _sntp_check_loop(void)
 {
     hal_rtc_time_t r_time;
@@ -322,6 +414,8 @@ static void _sntp_check_loop(void)
 
             snprintf(buf, 19, "%04d/%d/%d", r_time.rtc_year+CURR_CENTURY, r_time.rtc_mon, r_time.rtc_day);
             snprintf(buf, 19, "%02d:%02d:%02d", r_time.rtc_hour, r_time.rtc_min, r_time.rtc_sec);
+
+            set7seg(r_time.rtc_sec%10);
         }
 
         // wait 1 sec and retry
@@ -341,6 +435,103 @@ static void main_task(void *args)
     _sntp_check_loop();
 }
 
+static void gpio_table_init(void)
+{
+    hal_gpio_init(HAL_GPIO_37);
+    hal_pinmux_set_function(HAL_GPIO_37, HAL_GPIO_37_UART2_TX_CM4);
+    hal_gpio_init(HAL_GPIO_36);
+    hal_pinmux_set_function(HAL_GPIO_36, HAL_GPIO_36_UART2_RX_CM4);
+
+    hal_gpio_init(HAL_GPIO_27);
+    hal_pinmux_set_function(HAL_GPIO_27, HAL_GPIO_27_I2C1_CLK);
+    hal_gpio_init(HAL_GPIO_28);
+    hal_pinmux_set_function(HAL_GPIO_28, HAL_GPIO_28_I2C1_DATA);
+
+    hal_gpio_init(HAL_GPIO_32);
+    hal_pinmux_set_function(HAL_GPIO_32, HAL_GPIO_32_GPIO32);
+    hal_gpio_set_direction(HAL_GPIO_32, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_LOW);
+    hal_gpio_init(HAL_GPIO_29);
+    hal_pinmux_set_function(HAL_GPIO_29, HAL_GPIO_29_GPIO29);
+    hal_gpio_set_direction(HAL_GPIO_29, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(HAL_GPIO_29, HAL_GPIO_DATA_LOW);
+    hal_gpio_init(HAL_GPIO_30);
+    hal_pinmux_set_function(HAL_GPIO_30, HAL_GPIO_30_GPIO30);
+    hal_gpio_set_direction(HAL_GPIO_30, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(HAL_GPIO_30, HAL_GPIO_DATA_LOW);
+    hal_gpio_init(HAL_GPIO_31);
+    hal_pinmux_set_function(HAL_GPIO_31, HAL_GPIO_31_GPIO31);
+    hal_gpio_set_direction(HAL_GPIO_31, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
+}
+
+/* Private variables ---------------------------------------------------------*/
+static uint8_t g_uart_send_buffer[VFIFO_SIZE];
+static uint8_t g_uart_receive_buffer[VFIFO_SIZE];
+static volatile bool g_uart_receive_event = false;
+
+/**
+*@brief  Define callback by user.
+*@param[in] event should be any value of hal_uart_callback_event_t which defines UART event when an interrupt occurs.
+*@param[in] user_data: pointer to the data that user wants to use.
+*@return None.
+*/
+static void uart_read_from_input(hal_uart_callback_event_t event, void *user_data)
+{
+    if (event == HAL_UART_EVENT_READY_TO_READ) {
+        g_uart_receive_event = true;
+    }
+}
+
+static void send_DFPlayerCmd(uint8_t cmd[], int32_t cmdLen)
+{
+    hal_uart_send_dma(HAL_UART_1, cmd, cmdLen);
+}
+
+/**
+*@brief  DFPlayer transceiver through UART 1 dma mode.
+*@param None.
+*@return None.
+*/
+static void DFPlayerTask(void* args)
+{
+    hal_uart_config_t basic_config;
+    hal_uart_dma_config_t dma_config;
+    uint8_t buffer[VFIFO_SIZE];
+    uint32_t length;
+
+    /* Configure UART port with basic function */
+    basic_config.baudrate = HAL_UART_BAUDRATE_9600;
+    basic_config.parity = HAL_UART_PARITY_NONE;
+    basic_config.stop_bit = HAL_UART_STOP_BIT_1;
+    basic_config.word_length = HAL_UART_WORD_LENGTH_8;
+    hal_uart_init(HAL_UART_1, &basic_config);
+
+    /*Step2: Configure UART port to dma mode. */
+    dma_config.receive_vfifo_alert_size = RECEIVE_ALERT_SIZE;
+    dma_config.receive_vfifo_buffer = g_uart_receive_buffer;
+    dma_config.receive_vfifo_buffer_size = VFIFO_SIZE;
+    dma_config.receive_vfifo_threshold_size = RECEIVE_THRESHOLD_SIZE;
+    dma_config.send_vfifo_buffer = g_uart_send_buffer;
+    dma_config.send_vfifo_buffer_size = VFIFO_SIZE;
+    dma_config.send_vfifo_threshold_size = SEND_THRESHOLD_SIZE;
+    hal_uart_set_dma(HAL_UART_1, &dma_config);
+    hal_uart_register_callback(HAL_UART_1, uart_read_from_input, NULL);
+
+    /* Print the prompt content to the test port */
+    // hal_uart_send_dma(HAL_UART_1, (const uint8_t *)UART_PROMPT_INFO, UART_PROMPT_INFO_SIZE);
+
+    /*Step3: Loop the data received from the UART input to its output */
+    while (1) {
+        if (g_uart_receive_event == true) {
+            length = hal_uart_get_available_receive_bytes(HAL_UART_1);
+            hal_uart_receive_dma(HAL_UART_1, buffer, length);
+            // Handle receive data here
+            g_uart_receive_event = false;
+        }
+    }
+}
+
 /**
 * @brief       Main function
 * @param[in]   None.
@@ -348,6 +539,8 @@ static void main_task(void *args)
 */
 int main(void)
 {
+    hal_uart_config_t basic_config;
+
     /* Do system initialization, eg: hardware, nvdm and random seed. */
     system_init();
 
@@ -358,6 +551,14 @@ int main(void)
      * under project/mtxxxx_hdk/apps/.
      */
     log_init(NULL, NULL, NULL);
+
+    gpio_table_init();
+    /* Configure UART port with basic function */
+    basic_config.baudrate = HAL_UART_BAUDRATE_115200;
+    basic_config.parity = HAL_UART_PARITY_NONE;
+    basic_config.stop_bit = HAL_UART_STOP_BIT_1;
+    basic_config.word_length = HAL_UART_WORD_LENGTH_8;
+    hal_uart_init(HAL_UART_1, &basic_config);
 
     LOG_I(app, "start to create task.\n");
 
@@ -398,10 +599,14 @@ int main(void)
     in task_def.h. User needs to refer to example in task_def.h, then makes own task MACROs defined.
     */
 	xTaskCreate(main_task, "main task", 1024, NULL, 1, NULL);
+    xTaskCreate(DFPlayerTask, "DFPlayerUart Task", 1024, NULL, 2, NULL);
 
 
     /* Call this function to indicate the system initialize done. */
     SysInitStatus_Set();
+
+    // __enable_irq();
+    // __enable_fault_irq();
 
     /* Start the scheduler. */
     vTaskStartScheduler();
