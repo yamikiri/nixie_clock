@@ -578,6 +578,8 @@ static void DFPlayerTask(void* args)
             length = hal_uart_get_available_receive_bytes(HAL_UART_1);
             hal_uart_receive_dma(HAL_UART_1, buffer, length);
             // Handle receive data here
+            LOG_I(app, "DFPlayer resp: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
+                buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7]);
             g_uart_receive_event = false;
         }
     }
