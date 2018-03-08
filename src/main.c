@@ -437,10 +437,10 @@ static void main_task(void *args)
 
 static void gpio_table_init(void)
 {
-    hal_gpio_init(HAL_GPIO_37);
-    hal_pinmux_set_function(HAL_GPIO_37, HAL_GPIO_37_UART2_TX_CM4);
     hal_gpio_init(HAL_GPIO_36);
     hal_pinmux_set_function(HAL_GPIO_36, HAL_GPIO_36_UART2_RX_CM4);
+    hal_gpio_init(HAL_GPIO_37);
+    hal_pinmux_set_function(HAL_GPIO_37, HAL_GPIO_37_UART2_TX_CM4);
 
     hal_gpio_init(HAL_GPIO_27);
     hal_pinmux_set_function(HAL_GPIO_27, HAL_GPIO_27_I2C1_CLK);
@@ -483,9 +483,59 @@ static void uart_read_from_input(hal_uart_callback_event_t event, void *user_dat
     }
 }
 
-static void send_DFPlayerCmd(uint8_t cmd[], int32_t cmdLen)
+static void send_DFPlayerCmd(uint8_t *cmd, int32_t cmdLen)
 {
     hal_uart_send_dma(HAL_UART_1, cmd, cmdLen);
+}
+
+typedef struct _dfplayer_instruct {
+    uint8_t startByte;
+    uint8_t version;
+    uint8_t length;
+    uint8_t cmd;
+    uint8_t feedback;
+    uint8_t paraMSB;
+    uint8_t paraLSB;
+    uint8_t checksumMSB;
+    uint8_t checksumLSB;
+    uint8_t endByte;
+} dfplayer_instrction;
+
+void static specifySD(void)
+{
+    dfplayer_instrction inst = {
+        .startByte = 0x7e,
+        .version = 0xff,
+        .length = 6,
+        .cmd = 0x09,
+        .feedback = 0,
+        .paraMSB = 0,
+        .paraLSB = 2,
+        .checksumMSB = 0xFE,
+        .checksumLSB = 0xF0,
+        .endByte = 0xef
+    };
+    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
+}
+
+void static playback(void)
+{
+    //0x0D
+    dfplayer_instrction inst = {
+        .startByte = 0x7e,
+        .version = 0xff,
+        .length = 6,
+        .cmd = 0x0D,
+        .feedback = 0,
+        .paraMSB = 0,
+        .paraLSB = 0,
+        .checksumMSB = 0xFE,
+        .checksumLSB = 0xEE,
+        .endByte = 0xef
+    };
+    specifySD();
+    vTaskDelay(MS2TICK(1000));
+    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
 }
 
 /**
@@ -520,6 +570,7 @@ static void DFPlayerTask(void* args)
 
     /* Print the prompt content to the test port */
     // hal_uart_send_dma(HAL_UART_1, (const uint8_t *)UART_PROMPT_INFO, UART_PROMPT_INFO_SIZE);
+    playback();
 
     /*Step3: Loop the data received from the UART input to its output */
     while (1) {
@@ -553,12 +604,6 @@ int main(void)
     log_init(NULL, NULL, NULL);
 
     gpio_table_init();
-    /* Configure UART port with basic function */
-    basic_config.baudrate = HAL_UART_BAUDRATE_115200;
-    basic_config.parity = HAL_UART_PARITY_NONE;
-    basic_config.stop_bit = HAL_UART_STOP_BIT_1;
-    basic_config.word_length = HAL_UART_WORD_LENGTH_8;
-    hal_uart_init(HAL_UART_1, &basic_config);
 
     LOG_I(app, "start to create task.\n");
 
@@ -599,7 +644,7 @@ int main(void)
     in task_def.h. User needs to refer to example in task_def.h, then makes own task MACROs defined.
     */
 	xTaskCreate(main_task, "main task", 1024, NULL, 1, NULL);
-    xTaskCreate(DFPlayerTask, "DFPlayerUart Task", 1024, NULL, 2, NULL);
+    xTaskCreate(DFPlayerTask, "DFPlayerUart Task", 1024, NULL, 1, NULL);
 
 
     /* Call this function to indicate the system initialize done. */
