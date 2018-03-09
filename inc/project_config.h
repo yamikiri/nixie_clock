@@ -45,7 +45,7 @@
 #define BT_CONNECTION_BUF_SIZE (BT_CONNECTION_MAX* BT_CONTROL_BLOCK_SIZE_OF_LE_CONNECTION)
 
 
-#define APP_BLE_DEVICE_NAME           "BLE_SERIAL"
+#define APP_BLE_DEVICE_NAME           "IoT_NixieClock"
 
 #define APP_BLE_SERVICE_UUID          (0x18AA)
 
@@ -53,3 +53,24 @@
 #define SEND_THRESHOLD_SIZE           (8)
 #define RECEIVE_THRESHOLD_SIZE        (8)
 #define RECEIVE_ALERT_SIZE            (30)
+
+typedef struct _clock_configurations {
+    unsigned char magic[2];
+    unsigned long version;
+    unsigned long length;
+    int timeZone;
+    unsigned char AlarmEnable;
+    unsigned char AlarmType;
+    unsigned char AlarmSchedule[7];
+    unsigned char AlarmHour;
+    unsigned char AlarmMinute;
+    char ssid[33];
+    char pwd[64];
+} clock_configurations;
+
+#define NVDM_GRP "NIXIE_CLOCK"
+#define NVDM_GLOBAL_CONFIG "GLOBAL_CONFIGS"
+#define NVDM_DEFAULT_SSID "solidyear_B10"
+#define NVDM_DEFAULT_PWD "B10trumP"
+
+extern clock_configurations gConfig;

@@ -12,7 +12,7 @@ MEMORY
 	ROM_FOTA        (ar)  : ORIGIN = 0x10266000,    LENGTH = 0x0018A000 /* 1576k */
 	ROM_NVDM        (ar)  : ORIGIN = 0x103F0000,    LENGTH = 0x00010000 /* 64k  */
 	TCMRAM          (arw) : ORIGIN = 0x00100000,	LENGTH = 0x00010000 /* 64k  */
-        SYSRAM          (arw) : ORIGIN = 0x20000000,    LENGTH = 0x0003FC00 /* 255k */
+    SYSRAM          (arw) : ORIGIN = 0x20000000,    LENGTH = 0x0003FC00 /* 255k */
 }
 __FLASH_segment_start__ = ORIGIN( XIP_CODE );
 __FLASH_segment_end__ = __FLASH_segment_start__ + LENGTH( XIP_CODE );

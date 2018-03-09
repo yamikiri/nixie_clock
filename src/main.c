@@ -67,6 +67,8 @@
 #include "nvdm.h"
 #include "hal.h"
 
+clock_configurations gConfig;
+
 /* Create the log control block as user wishes. Here we use 'template' as module name.
  * User needs to define their own log control blocks as project needs.
  * Please refer to the log dev guide under /doc folder for more details.
@@ -331,8 +333,6 @@ static void pcf8574_write(uint8_t high, uint8_t low)
 #define NTP_SERVER2 "clock.stdtime.gov.tw"
 #define TIMEZONE_OFFSET     8
 #define CURR_CENTURY 2000
-#define AP_SSID "solidyear_B10"
-#define AP_PWD "B10trumP"
 #define US2TICK(us) (us/(1000*portTICK_RATE_MS))
 #define MS2TICK(ms) (ms/(portTICK_RATE_MS))
 
@@ -585,6 +585,42 @@ static void DFPlayerTask(void* args)
     }
 }
 
+static void initializeGlobalConfiguration(clock_configurations *config)
+{
+    memset(config, 0x00, sizeof(clock_configurations));
+    memcpy(config->magic, "\xAA\x55", 2);
+    config->version = 1;
+    config->length = sizeof(clock_configurations);
+    config->timeZone = 8;
+    memcpy(config->ssid, NVDM_DEFAULT_SSID, strlen(NVDM_DEFAULT_SSID));
+    memcpy(config->pwd, NVDM_DEFAULT_PWD, strlen(NVDM_DEFAULT_PWD));
+    LOG_I(app, "initialized global configurations.");
+}
+
+static void dumpGlobalConfig(void)
+{
+    LOG_I(app, "magic = 0x%02X 0x%02X,\n"
+               "version = %d\n"
+               "length = %d\n"
+               "Time Zone = %d\n"
+               "AlarmEnable = %s\n"
+               "AlarmType = %s\n"
+               "AlarmSchedule = %d %d %d %d %d %d %d\n"
+               "Alarm = %02d:%02d\n"
+               "ssid: %s\n"
+               "pwd: %s",
+               gConfig.magic[0], gConfig.magic[1],
+               gConfig.version,
+               gConfig.length,
+               gConfig.timeZone,
+               gConfig.AlarmEnable>0?"true":"false",
+               gConfig.AlarmType==0?"OneShot":"EveryWeek",
+               gConfig.AlarmSchedule[0], gConfig.AlarmSchedule[1], gConfig.AlarmSchedule[2], gConfig.AlarmSchedule[3], gConfig.AlarmSchedule[4], gConfig.AlarmSchedule[5], gConfig.AlarmSchedule[6],
+               gConfig.AlarmHour, gConfig.AlarmMinute,
+               gConfig.ssid,
+               gConfig.pwd);
+}
+
 /**
 * @brief       Main function
 * @param[in]   None.
@@ -593,6 +629,7 @@ static void DFPlayerTask(void* args)
 int main(void)
 {
     hal_uart_config_t basic_config;
+    nvdm_status_t nvdmStatus;
 
     /* Do system initialization, eg: hardware, nvdm and random seed. */
     system_init();
@@ -606,6 +643,41 @@ int main(void)
     log_init(NULL, NULL, NULL);
 
     gpio_table_init();
+    nvdmStatus = nvdm_init();
+    //if (nvdmStatus == NVDM_STATUS_OK) {
+        uint8_t dirtyflag = 0;
+        uint32_t toRead = sizeof(gConfig);
+        nvdmStatus = nvdm_read_data_item(NVDM_GRP, NVDM_GLOBAL_CONFIG, (uint8_t *)&gConfig, &toRead);
+        if (nvdmStatus != NVDM_STATUS_OK) {
+            LOG_I(app, "global configurations not exist!");
+            initializeGlobalConfiguration(&gConfig);
+            if (nvdmStatus == NVDM_STATUS_ITEM_NOT_FOUND || nvdmStatus == NVDM_STATUS_INCORRECT_CHECKSUM) {
+                dirtyflag = 1;
+            }
+        } else {
+            LOG_I(app, "global configuration loaded.");
+            if (gConfig.magic[0] != 0xAA || gConfig.magic[1] != 0x55) {
+                LOG_E(app, "magic incorrect!");
+                initializeGlobalConfiguration(&gConfig);
+                if (nvdmStatus == NVDM_STATUS_ITEM_NOT_FOUND || nvdmStatus == NVDM_STATUS_INCORRECT_CHECKSUM) {
+                    dirtyflag = 1;
+                }
+            } else {
+                dumpGlobalConfig();
+            }
+        }
+
+        if (dirtyflag) {
+            nvdm_write_data_item(NVDM_GRP, NVDM_GLOBAL_CONFIG, NVDM_DATA_ITEM_TYPE_RAW_DATA, (uint8_t *)&gConfig, sizeof(gConfig));
+            if (nvdmStatus == NVDM_STATUS_OK) {
+                LOG_I(app, "saved global configurations.");
+            } else {
+                LOG_I(app, "failed to save global configurations.(0x%X)", nvdmStatus);
+            }
+        }
+    //} else {
+    //    LOG_E(app, "initialize NVDM failed(0x%X)!", nvdmStatus);
+    //}
 
     LOG_I(app, "start to create task.\n");
 
@@ -613,8 +685,8 @@ int main(void)
      * will be started , and adopt which settings for the specific mode while wifi initial process is running*/
     wifi_config_t config = {0};
     config.opmode = WIFI_MODE_STA_ONLY;
-    strcpy((char *)config.sta_config.ssid, (const char *)AP_SSID);
-    strcpy((char *)config.sta_config.password, (const char *)AP_PWD);
+    strcpy((char *)config.sta_config.ssid, (const char *)gConfig.ssid);
+    strcpy((char *)config.sta_config.password, (const char *)gConfig.pwd);
     config.sta_config.ssid_length = strlen((const char *)config.sta_config.ssid);
     config.sta_config.password_length = strlen((const char *)config.sta_config.password);
 
