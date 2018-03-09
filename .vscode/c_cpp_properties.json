@@ -52,6 +52,7 @@
                 "${workspaceRoot}/../../../../middleware/MTK/bt_notify/inc",
                 "${workspaceRoot}/../../../../middleware/MTK/nvdm/inc",
                 "${workspaceRoot}/../../../../middleware/MTK/dhcpd/inc",
+                "${workspaceRoot}/../../../../middleware/MTK/nvdm/inc",
                 "${workspaceRoot}/../../../../middleware/third_party/sntp/inc",
                 "${workspaceRoot}/../../../../middleware/third_party/lwip/ports/include",
                 "${workspaceRoot}/../../../../middleware/third_party/lwip/src/include",
