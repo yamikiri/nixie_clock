@@ -294,17 +294,18 @@ static void pcf8574_write(uint8_t high, uint8_t low)
 {
 
     hal_i2c_config_t i2c_init;
-    hal_i2c_frequency_t input_frequency = HAL_I2C_FREQUENCY_100K;
+    hal_i2c_frequency_t input_frequency = HAL_I2C_FREQUENCY_50K;
     hal_i2c_port_t i2c_port = HAL_I2C_MASTER_0;
     uint32_t test_fail = 0;
 
     i2c_init.frequency = input_frequency;
-    if (HAL_I2C_STATUS_OK != hal_i2c_master_init(i2c_port, &i2c_init)) {
+    /*if (HAL_I2C_STATUS_OK != hal_i2c_master_init(i2c_port, &i2c_init)) {
         LOG_E(app, "I2C initialize1 failed");
         return;
-    }
+    }*/
+    hal_i2c_master_init(i2c_port, &i2c_init);
     /* Register callback function */
-    if (HAL_I2C_STATUS_OK != hal_i2c_master_register_callback(i2c_port, i2c_callback, NULL)) {
+    /*if (HAL_I2C_STATUS_OK != hal_i2c_master_register_callback(i2c_port, i2c_callback, NULL)) {
         LOG_E(app, "I2C register1 callback failed");
         return;
     }
@@ -315,15 +316,19 @@ static void pcf8574_write(uint8_t high, uint8_t low)
     if (HAL_I2C_STATUS_OK != hal_i2c_master_send_dma(i2c_port, LOW_PART_ADDR, &low, 1)) {
         LOG_E(app, "I2C send2 failed");
         return;
-    }
+    }*/
+
+    hal_i2c_master_send_polling(i2c_port, HIGH_PART_ADDR, &high, 1);
+    hal_i2c_master_send_polling(i2c_port, LOW_PART_ADDR, &low, 1);
 
     /* Deinitialize I2C */
-    while (0 == i2c_finish_flag);
+    /*while (0 == i2c_finish_flag);
     i2c_finish_flag = 0;
     if (HAL_I2C_STATUS_OK != hal_i2c_master_deinit(i2c_port)) {
         LOG_E(app, "I2C deinitialize1 failed");
         return;
-    }
+    }*/
+    hal_i2c_master_deinit(i2c_port);
 }
 
 #include "hal.h"
@@ -365,6 +370,7 @@ static void _timezone_shift(hal_rtc_time_t* t, int offset_hour)
 
 static void set7seg(uint8_t d)
 {
+#if 0
     uint8_t tmp = d;
     int32_t i = 0;
     uint8_t r[4] = {0};
@@ -396,6 +402,15 @@ static void set7seg(uint8_t d)
     } else {
         hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
     }
+#else
+    static uint8_t sec = 0;
+    if ((sec++%2) == 0) {
+        hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_HIGH);
+    } else {
+        hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_LOW);
+    }
+    pcf8574_write(d, 0);
+#endif
 }
 
 static void _sntp_check_loop(void)
@@ -415,7 +430,7 @@ static void _sntp_check_loop(void)
             snprintf(buf, 19, "%04d/%d/%d", r_time.rtc_year+CURR_CENTURY, r_time.rtc_mon, r_time.rtc_day);
             snprintf(buf, 19, "%02d:%02d:%02d", r_time.rtc_hour, r_time.rtc_min, r_time.rtc_sec);
 
-            set7seg(r_time.rtc_sec%10);
+            set7seg(r_time.rtc_min);
         }
 
         // wait 1 sec and retry
@@ -431,7 +446,7 @@ static void main_task(void *args)
     sntp_init();
     LOG_I(app, "SNTP inited");
 
-    vTaskDelay(MS2TICK(1000));
+    vTaskDelay(MS2TICK(500));
     _sntp_check_loop();
 }
 
@@ -451,18 +466,18 @@ static void gpio_table_init(void)
     hal_pinmux_set_function(HAL_GPIO_32, HAL_GPIO_32_GPIO32);
     hal_gpio_set_direction(HAL_GPIO_32, HAL_GPIO_DIRECTION_OUTPUT);
     hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_LOW);
-    hal_gpio_init(HAL_GPIO_29);
-    hal_pinmux_set_function(HAL_GPIO_29, HAL_GPIO_29_GPIO29);
-    hal_gpio_set_direction(HAL_GPIO_29, HAL_GPIO_DIRECTION_OUTPUT);
-    hal_gpio_set_output(HAL_GPIO_29, HAL_GPIO_DATA_LOW);
-    hal_gpio_init(HAL_GPIO_30);
-    hal_pinmux_set_function(HAL_GPIO_30, HAL_GPIO_30_GPIO30);
-    hal_gpio_set_direction(HAL_GPIO_30, HAL_GPIO_DIRECTION_OUTPUT);
-    hal_gpio_set_output(HAL_GPIO_30, HAL_GPIO_DATA_LOW);
-    hal_gpio_init(HAL_GPIO_31);
-    hal_pinmux_set_function(HAL_GPIO_31, HAL_GPIO_31_GPIO31);
-    hal_gpio_set_direction(HAL_GPIO_31, HAL_GPIO_DIRECTION_OUTPUT);
-    hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
+    // hal_gpio_init(HAL_GPIO_29);
+    // hal_pinmux_set_function(HAL_GPIO_29, HAL_GPIO_29_GPIO29);
+    // hal_gpio_set_direction(HAL_GPIO_29, HAL_GPIO_DIRECTION_OUTPUT);
+    // hal_gpio_set_output(HAL_GPIO_29, HAL_GPIO_DATA_LOW);
+    // hal_gpio_init(HAL_GPIO_30);
+    // hal_pinmux_set_function(HAL_GPIO_30, HAL_GPIO_30_GPIO30);
+    // hal_gpio_set_direction(HAL_GPIO_30, HAL_GPIO_DIRECTION_OUTPUT);
+    // hal_gpio_set_output(HAL_GPIO_30, HAL_GPIO_DATA_LOW);
+    // hal_gpio_init(HAL_GPIO_31);
+    // hal_pinmux_set_function(HAL_GPIO_31, HAL_GPIO_31_GPIO31);
+    // hal_gpio_set_direction(HAL_GPIO_31, HAL_GPIO_DIRECTION_OUTPUT);
+    // hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
 }
 
 /* Private variables ---------------------------------------------------------*/
