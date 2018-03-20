@@ -285,6 +285,16 @@ static void i2c_callback(uint8_t slave_address, hal_i2c_callback_event_t event, 
     i2c_finish_flag = 1;
 }
 
+static uint8_t *resembleTo2Digit(uint8_t *in)
+{
+    uint8_t temp = 0;
+    *in = *in % 100;
+    temp = *in / 10;
+    temp = temp << 4 | (*in % 10);
+    *in = temp;
+    return in;
+}
+
 /**
 *@brief  In this function, we send datum to EEPROM and read them back to verify the success of i2c communication with EEPROM.
 *@param None.
@@ -318,8 +328,8 @@ static void pcf8574_write(uint8_t high, uint8_t low)
         return;
     }*/
 
-    hal_i2c_master_send_polling(i2c_port, HIGH_PART_ADDR, &high, 1);
-    hal_i2c_master_send_polling(i2c_port, LOW_PART_ADDR, &low, 1);
+    hal_i2c_master_send_polling(i2c_port, HIGH_PART_ADDR, resembleTo2Digit(&high), 1);
+    hal_i2c_master_send_polling(i2c_port, LOW_PART_ADDR, resembleTo2Digit(&low), 1);
 
     /* Deinitialize I2C */
     /*while (0 == i2c_finish_flag);
