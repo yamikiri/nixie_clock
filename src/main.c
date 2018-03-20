@@ -270,8 +270,8 @@ static void app_btnotify_init(void)
 
 extern void bt_common_init(void);
 
-#define HIGH_PART_ADDR      (0x70 >> 1)
-#define LOW_PART_ADDR       (0x72 >> 1)
+#define HIGH_PART_ADDR      (0x72 >> 1)
+#define LOW_PART_ADDR       (0x70 >> 1)
 volatile uint32_t i2c_finish_flag = 0;
 
 /**
@@ -378,7 +378,7 @@ static void _timezone_shift(hal_rtc_time_t* t, int offset_hour)
     t->rtc_sec = nt->tm_sec;
 }
 
-static void set7seg(uint8_t d)
+static void set7seg(uint8_t h, uint8_t m)
 {
 #if 0
     uint8_t tmp = d;
@@ -419,7 +419,7 @@ static void set7seg(uint8_t d)
     } else {
         hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_LOW);
     }
-    pcf8574_write(d, 0);
+    pcf8574_write(h, m);
 #endif
 }
 
@@ -440,7 +440,7 @@ static void _sntp_check_loop(void)
             snprintf(buf, 19, "%04d/%d/%d", r_time.rtc_year+CURR_CENTURY, r_time.rtc_mon, r_time.rtc_day);
             snprintf(buf, 19, "%02d:%02d:%02d", r_time.rtc_hour, r_time.rtc_min, r_time.rtc_sec);
 
-            set7seg(r_time.rtc_min);
+            set7seg(r_time.rtc_hour, r_time.rtc_min);
         }
 
         // wait 1 sec and retry
