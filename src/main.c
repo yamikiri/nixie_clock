@@ -304,7 +304,7 @@ static void pcf8574_write(uint8_t high, uint8_t low)
 {
 
     hal_i2c_config_t i2c_init;
-    hal_i2c_frequency_t input_frequency = HAL_I2C_FREQUENCY_50K;
+    hal_i2c_frequency_t input_frequency = HAL_I2C_FREQUENCY_100K;
     hal_i2c_port_t i2c_port = HAL_I2C_MASTER_0;
     uint32_t test_fail = 0;
 
