@@ -53,19 +53,26 @@
 #define SEND_THRESHOLD_SIZE           (8)
 #define RECEIVE_THRESHOLD_SIZE        (8)
 #define RECEIVE_ALERT_SIZE            (30)
+#define CLOCK_CONFIG_VERSION          (2)
+#define MAX_AMOUNT_ALARMS             (3)
+
+typedef struct _alarm_config {
+    unsigned char AlarmEnable;
+    unsigned char AlarmType;
+    unsigned char AlarmSchedule[7];
+    unsigned char AlarmHour;
+    unsigned char AlarmMinute;
+} alarm_config;
 
 typedef struct _clock_configurations {
     unsigned char magic[2];
     unsigned long version;
     unsigned long length;
     int timeZone;
-    unsigned char AlarmEnable;
-    unsigned char AlarmType;
-    unsigned char AlarmSchedule[7];
-    unsigned char AlarmHour;
-    unsigned char AlarmMinute;
     char ssid[33];
     char pwd[64];
+    unsigned long nAlarms;
+    alarm_config alarms[MAX_AMOUNT_ALARMS];
 } clock_configurations;
 
 #define NVDM_GRP "NIXIE_CLOCK"

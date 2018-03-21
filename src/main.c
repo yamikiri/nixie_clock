@@ -614,12 +614,30 @@ static void initializeGlobalConfiguration(clock_configurations *config)
 {
     memset(config, 0x00, sizeof(clock_configurations));
     memcpy(config->magic, "\xAA\x55", 2);
-    config->version = 1;
+    config->version = CLOCK_CONFIG_VERSION;
     config->length = sizeof(clock_configurations);
     config->timeZone = 8;
     memcpy(config->ssid, NVDM_DEFAULT_SSID, strlen(NVDM_DEFAULT_SSID));
     memcpy(config->pwd, NVDM_DEFAULT_PWD, strlen(NVDM_DEFAULT_PWD));
+    config->nAlarms = 0;
     LOG_I(app, "initialized global configurations.");
+}
+
+static void printAlarms(void)
+{
+    int i = 0;
+    for (i = 0; i < gConfig.nAlarms;i++) {
+        LOG_I(app, "AlarmEnable = %s\n"
+                   "AlarmType = %s\n"
+                   "AlarmSchedule = %d %d %d %d %d %d %d\n"
+                   "Alarm = %02d:%02d\n",
+                   gConfig.alarms[i].AlarmEnable>0?"true":"false",
+                   gConfig.alarms[i].AlarmType==0?"OneShot":"EveryWeek",
+                   gConfig.alarms[i].AlarmSchedule[0], gConfig.alarms[i].AlarmSchedule[1], gConfig.alarms[i].AlarmSchedule[2],
+                   gConfig.alarms[i].AlarmSchedule[3], gConfig.alarms[i].AlarmSchedule[4], gConfig.alarms[i].AlarmSchedule[5],
+                   gConfig.alarms[i].AlarmSchedule[6],
+                   gConfig.alarms[i].AlarmHour, gConfig.alarms[i].AlarmMinute);
+    }
 }
 
 static void dumpGlobalConfig(void)
@@ -628,22 +646,17 @@ static void dumpGlobalConfig(void)
                "version = %d\n"
                "length = %d\n"
                "Time Zone = %d\n"
-               "AlarmEnable = %s\n"
-               "AlarmType = %s\n"
-               "AlarmSchedule = %d %d %d %d %d %d %d\n"
-               "Alarm = %02d:%02d\n"
                "ssid: %s\n"
-               "pwd: %s",
+               "pwd: %s\n"
+               "nAlarms: %d\n",
                gConfig.magic[0], gConfig.magic[1],
                gConfig.version,
                gConfig.length,
                gConfig.timeZone,
-               gConfig.AlarmEnable>0?"true":"false",
-               gConfig.AlarmType==0?"OneShot":"EveryWeek",
-               gConfig.AlarmSchedule[0], gConfig.AlarmSchedule[1], gConfig.AlarmSchedule[2], gConfig.AlarmSchedule[3], gConfig.AlarmSchedule[4], gConfig.AlarmSchedule[5], gConfig.AlarmSchedule[6],
-               gConfig.AlarmHour, gConfig.AlarmMinute,
                gConfig.ssid,
-               gConfig.pwd);
+               gConfig.pwd,
+               gConfig.nAlarms);
+    printAlarms();
 }
 
 /**
@@ -684,9 +697,11 @@ int main(void)
             if (gConfig.magic[0] != 0xAA || gConfig.magic[1] != 0x55) {
                 LOG_E(app, "magic incorrect!");
                 initializeGlobalConfiguration(&gConfig);
-                if (nvdmStatus == NVDM_STATUS_ITEM_NOT_FOUND || nvdmStatus == NVDM_STATUS_INCORRECT_CHECKSUM) {
-                    dirtyflag = 1;
-                }
+                dirtyflag = 1;
+            } else if (gConfig.version != CLOCK_CONFIG_VERSION) {
+                LOG_E(app, "config version mismatch!");
+                initializeGlobalConfiguration(&gConfig);
+                dirtyflag = 1;
             } else {
                 dumpGlobalConfig();
             }
