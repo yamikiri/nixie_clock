@@ -99,8 +99,8 @@ static void app_start_advertising(void)
             .advertising_channel_map = APP_BLE_CHANNEL_NUM,
             .advertising_filter_policy = APP_BLE_FILTER_POLICY
         };
-    bt_hci_cmd_le_set_advertising_data_t adv_data;
-
+    bt_hci_cmd_le_set_advertising_data_t adv_data = {0};
+#if 1
     adv_data.advertising_data[0] = APP_BLE_AD_FLAG_LEN;
     adv_data.advertising_data[1] = BT_GAP_LE_AD_TYPE_FLAG;
     adv_data.advertising_data[2] = BT_GAP_LE_AD_FLAG_BR_EDR_NOT_SUPPORTED | BT_GAP_LE_AD_FLAG_GENERAL_DISCOVERABLE;
@@ -115,9 +115,22 @@ static void app_start_advertising(void)
     memcpy(adv_data.advertising_data+9, APP_BLE_DEVICE_NAME, strlen(APP_BLE_DEVICE_NAME));
 
     adv_data.advertising_data_length = 9 + strlen(APP_BLE_DEVICE_NAME);
+#else
+    adv_data.advertising_data_length = 2 + strlen(APP_BLE_DEVICE_NAME);
+    adv_data.advertising_data[0] = 1+strlen(APP_BLE_DEVICE_NAME);
+    adv_data.advertising_data[1] = BT_GAP_LE_AD_TYPE_NAME_COMPLETE;
+    memcpy(adv_data.advertising_data+2, APP_BLE_DEVICE_NAME, strlen(APP_BLE_DEVICE_NAME));
+#endif
 
     enable.advertising_enable = BT_HCI_ENABLE;
     bt_gap_le_set_advertising(&enable, &adv_param, &adv_data, NULL);
+}
+
+static void app_stop_advertising(void)
+{
+    bt_hci_cmd_le_set_advertising_enable_t enable;
+    enable.advertising_enable = BT_HCI_DISABLE;
+    bt_gap_le_set_advertising(&enable, NULL, NULL, NULL);
 }
 
 extern bt_bd_addr_t local_public_addr;
@@ -166,6 +179,7 @@ bt_status_t app_bt_event_callback(bt_msg_type_t msg, bt_status_t status, void *b
         LOG_I(app, "************************");
         LOG_I(app, "BLE connected!!");
         LOG_I(app, "************************");
+        app_stop_advertising();
         break;
     }
 
@@ -248,6 +262,7 @@ static void app_btnotify_msg_hdlr(void *data)
         }
         break;
     default:
+        LOG_I(app, "evt=%d, not handled.", p_data->evt_id);
         break;
     }
 
@@ -257,7 +272,7 @@ static void app_btnotify_msg_hdlr(void *data)
 static void app_btnotify_init(void)
 {
     bt_notify_init(0);
-    bt_notify_register_callback(NULL, SERIAL_EXTCMD_UPDATE_BIN_SENDER, app_btnotify_msg_hdlr);    
+    bt_notify_register_callback(NULL, APP_BLE_DEVICE_NAME, app_btnotify_msg_hdlr);
 
     log_config_print_switch(NOTIFY, DEBUG_LOG_OFF);
     log_config_print_switch(NOTIFY_SRV, DEBUG_LOG_OFF);

@@ -45,9 +45,9 @@
 #define BT_CONNECTION_BUF_SIZE (BT_CONNECTION_MAX* BT_CONTROL_BLOCK_SIZE_OF_LE_CONNECTION)
 
 
-#define APP_BLE_DEVICE_NAME           "IoT_NixieClock"
+#define APP_BLE_DEVICE_NAME           "IoT NixieClock"
 
-#define APP_BLE_SERVICE_UUID          (0x18AA)
+#define APP_BLE_SERVICE_UUID          (0x1801)
 
 #define VFIFO_SIZE                    (128)
 #define SEND_THRESHOLD_SIZE           (8)
