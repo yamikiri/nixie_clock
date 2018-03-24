@@ -63,6 +63,7 @@
 
 /* app-wise config */
 #include "project_config.h"
+#include "dfplayer.h"
 
 /* hal */
 #include "nvdm.h"
@@ -72,6 +73,7 @@
 
 volatile clock_configurations gConfig;
 char volatile gTimeStringCache[20];
+volatile uint16_t gCurrentTrack;
 
 /* Create the log control block as user wishes. Here we use 'template' as module name.
  * User needs to define their own log control blocks as project needs.
@@ -577,20 +579,15 @@ static void send_DFPlayerCmd(uint8_t *cmd, int32_t cmdLen)
     hal_uart_send_dma(HAL_UART_1, cmd, cmdLen);
 }
 
-typedef struct _dfplayer_instruct {
-    uint8_t startByte;
-    uint8_t version;
-    uint8_t length;
-    uint8_t cmd;
-    uint8_t feedback;
-    uint8_t paraMSB;
-    uint8_t paraLSB;
-    uint8_t checksumMSB;
-    uint8_t checksumLSB;
-    uint8_t endByte;
-} dfplayer_instrction;
+void calculateChecksum(dfplayer_instrction *inst)
+{
+    uint16_t sum = inst->version + inst->length + inst->cmd + inst->feedback + inst->paraMSB + inst->paraLSB;
+    sum = 0 - sum;
+    inst->checksumMSB = (uint8_t)(((uint16_t)sum & 0xFF00) >> 8);
+    inst->checksumLSB = (uint8_t)((uint16_t)sum & 0x00FF);
+}
 
-void static specifySD(void)
+void specifySD(void)
 {
     dfplayer_instrction inst = {
         .startByte = 0x7e,
@@ -600,14 +597,33 @@ void static specifySD(void)
         .feedback = 0,
         .paraMSB = 0,
         .paraLSB = 2,
-        .checksumMSB = 0xFE,
-        .checksumLSB = 0xF0,
+//        .checksumMSB = 0xFE,
+//        .checksumLSB = 0xF0,
         .endByte = 0xef
     };
+    calculateChecksum(&inst);
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
 }
 
-void static playback(void)
+void specifyTrackId(uint16_t trackId)
+{
+    dfplayer_instrction inst = {
+        .startByte = 0x7e,
+        .version = 0xff,
+        .length = 6,
+        .cmd = 0x03,
+        .feedback = 0,
+        .paraMSB = (uint8_t)(trackId & 0xFF00 >> 8) ,
+        .paraLSB = (uint8_t)(trackId & 0xFF),
+//        .checksumMSB = 0xFE,
+//        .checksumLSB = 0xF0,
+        .endByte = 0xef
+    };
+    calculateChecksum(&inst);
+    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
+}
+
+void playback(uint16_t trackId)
 {
     //0x0D
     dfplayer_instrction inst = {
@@ -615,15 +631,17 @@ void static playback(void)
         .version = 0xff,
         .length = 6,
         .cmd = 0x0D,
-        .feedback = 0,
+        .feedback = 1,
         .paraMSB = 0,
         .paraLSB = 0,
-        .checksumMSB = 0xFE,
-        .checksumLSB = 0xEE,
+//        .checksumMSB = 0xFE,
+//        .checksumLSB = 0xEE,
         .endByte = 0xef
     };
-    specifySD();
-    vTaskDelay(MS2TICK(1000));
+    calculateChecksum(&inst);
+
+    specifyTrackId(trackId);
+    vTaskDelay(MS2TICK(100));
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
 }
 
@@ -659,7 +677,9 @@ static void DFPlayerTask(void* args)
 
     /* Print the prompt content to the test port */
     // hal_uart_send_dma(HAL_UART_1, (const uint8_t *)UART_PROMPT_INFO, UART_PROMPT_INFO_SIZE);
-    playback();
+    specifySD();
+    vTaskDelay(MS2TICK(1000));
+    //playback(gCurrentTrack++);
 
     /*Step3: Loop the data received from the UART input to its output */
     while (1) {
@@ -669,6 +689,7 @@ static void DFPlayerTask(void* args)
             // Handle receive data here
             LOG_I(app, "DFPlayer resp: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
                 buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7]);
+
             g_uart_receive_event = false;
         }
     }
@@ -793,6 +814,7 @@ int main(void)
     memset(gTimeStringCache, 0x00, sizeof(gTimeStringCache));
     gBLE_BroadcastNotiIndication = NULL;
     gBLE_WifiConnectedNotiIndication = NULL;
+    gCurrentTrack = 0;
     nvdmStatus = nvdm_init();
     //if (nvdmStatus == NVDM_STATUS_OK) {
         uint8_t dirtyflag = 0;

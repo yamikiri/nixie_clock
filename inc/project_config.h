@@ -31,8 +31,11 @@
  * OR REFUND ANY SOFTWARE LICENSE FEES OR SERVICE CHARGE PAID BY RECEIVER TO
  * MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
  */
+#ifndef __PROJECT_CONFIG_H__
+#define __PROJECT_CONFIG_H__
 
 #include <time.h>
+#include <stdint.h>
 #define NTP_SERVER1 "time.stdtime.gov.tw"
 #define NTP_SERVER2 "clock.stdtime.gov.tw"
 #define TIMEZONE_OFFSET     8
@@ -63,7 +66,7 @@
 #define SEND_THRESHOLD_SIZE           (8)
 #define RECEIVE_THRESHOLD_SIZE        (8)
 #define RECEIVE_ALERT_SIZE            (30)
-#define CLOCK_CONFIG_VERSION          (3)
+#define CLOCK_CONFIG_VERSION          (4)
 #define MAX_AMOUNT_ALARMS             (3)
 
 #define FIX_DIGI_0                    (1 << 0)
@@ -86,6 +89,7 @@ typedef struct _notification_tasklet {
 typedef struct _alarm_config {
     unsigned char AlarmEnable;
     unsigned char AlarmType;
+    unsigned char AlarmMusicIndex;
     unsigned char AlarmSchedule[7];
     unsigned char AlarmHour;
     unsigned char AlarmMinute;
@@ -110,6 +114,9 @@ typedef struct _clock_configurations {
 
 extern volatile clock_configurations gConfig;
 extern volatile notification_tasklet gNotiTasklet;
+extern volatile uint16_t gCurrentTrack;
 extern char volatile gTimeStringCache[20];
 extern volatile void* gBLE_BroadcastNotiIndication;
 extern volatile void *gBLE_WifiConnectedNotiIndication;
+
+#endif
