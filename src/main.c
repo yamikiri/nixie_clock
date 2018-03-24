@@ -365,7 +365,7 @@ static void pcf8574_write(uint8_t high, uint8_t low)
 {
 
     hal_i2c_config_t i2c_init;
-    hal_i2c_frequency_t input_frequency = HAL_I2C_FREQUENCY_50K;
+    hal_i2c_frequency_t input_frequency = HAL_I2C_FREQUENCY_100K;
     hal_i2c_port_t i2c_port = HAL_I2C_MASTER_0;
     uint32_t test_fail = 0;
     uint16_t combine = ((uint16_t)high << 8) | low;
@@ -394,6 +394,7 @@ static void pcf8574_write(uint8_t high, uint8_t low)
     high = combine >> 8;
     low = combine & 0xFF;
     hal_i2c_master_send_polling(i2c_port, HIGH_PART_ADDR, &high, 1);
+    vTaskDelay(MS2TICK(10));
     hal_i2c_master_send_polling(i2c_port, LOW_PART_ADDR, &low, 1);
 
     /* Deinitialize I2C */
