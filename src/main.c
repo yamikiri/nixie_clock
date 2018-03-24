@@ -312,7 +312,7 @@ static void i2c_callback(uint8_t slave_address, hal_i2c_callback_event_t event, 
     i2c_finish_flag = 1;
 }
 
-static uint8_t mirrorMapping(uint8_t digit)
+static inline uint8_t mirrorMapping(uint8_t digit)
 {
     uint8_t ret;
     switch(digit) {
@@ -331,27 +331,29 @@ static uint8_t mirrorMapping(uint8_t digit)
     return ret;
 }
 
-static uint8_t *nixiePCBfix(uint8_t *in)
+static inline uint16_t nixiePCBfix(uint8_t in)
 {
-    uint8_t temp;
-    if (gConfig.nixieFix == 0)
-        return in;
-    temp = (*in >> 4) % 10;
-    temp = mirrorMapping(temp);
-    *in = (*in & 0x0F) % 10;
-    *in = mirrorMapping(*in);
-    *in = temp << 4 | *in;
-    return in;
+    return mirrorMapping(in);
 }
 
-static uint8_t *resembleTo2Digit(uint8_t *in)
+static uint16_t resembleTo4Digit(uint16_t in)
 {
-    uint8_t temp = 0;
-    *in = *in % 100;
-    temp = *in / 10;
-    temp = temp << 4 | (*in % 10);
-    *in = temp;
-    return nixiePCBfix(in);
+    uint16_t totalDigit = 4, final = 0;
+    uint8_t temp, i, digit;
+    for (i = 0;i < totalDigit;i++) {
+        if (i%2 == 0) {
+            temp = (in >> (8 * (i/2))) & 0xFF;
+            temp = temp % 100;
+            digit = temp % 10;
+        } else {
+            digit = temp / 10;
+        }
+        if (NIXIE_PCB_FIX & (1<<i)) {
+            digit = nixiePCBfix(digit);
+        }
+        final |= ((uint16_t)digit) << (4*(i%2) + 8*(i/2));
+    }
+    return final;
 }
 
 /**
@@ -363,9 +365,10 @@ static void pcf8574_write(uint8_t high, uint8_t low)
 {
 
     hal_i2c_config_t i2c_init;
-    hal_i2c_frequency_t input_frequency = HAL_I2C_FREQUENCY_100K;
+    hal_i2c_frequency_t input_frequency = HAL_I2C_FREQUENCY_50K;
     hal_i2c_port_t i2c_port = HAL_I2C_MASTER_0;
     uint32_t test_fail = 0;
+    uint16_t combine = ((uint16_t)high << 8) | low;
 
     i2c_init.frequency = input_frequency;
     /*if (HAL_I2C_STATUS_OK != hal_i2c_master_init(i2c_port, &i2c_init)) {
@@ -387,8 +390,11 @@ static void pcf8574_write(uint8_t high, uint8_t low)
         return;
     }*/
 
-    hal_i2c_master_send_polling(i2c_port, HIGH_PART_ADDR, resembleTo2Digit(&high), 1);
-    hal_i2c_master_send_polling(i2c_port, LOW_PART_ADDR, resembleTo2Digit(&low), 1);
+    combine = resembleTo4Digit(combine);
+    high = combine >> 8;
+    low = combine & 0xFF;
+    hal_i2c_master_send_polling(i2c_port, HIGH_PART_ADDR, &high, 1);
+    hal_i2c_master_send_polling(i2c_port, LOW_PART_ADDR, &low, 1);
 
     /* Deinitialize I2C */
     /*while (0 == i2c_finish_flag);

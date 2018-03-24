@@ -65,7 +65,12 @@
 #define RECEIVE_ALERT_SIZE            (30)
 #define CLOCK_CONFIG_VERSION          (3)
 #define MAX_AMOUNT_ALARMS             (3)
-#define NIXIE_PCB_FIX                 (1)
+
+#define FIX_DIGI_0                    (1 << 0)
+#define FIX_DIGI_1                    (1 << 1)
+#define FIX_DIGI_2                    (1 << 2)
+#define FIX_DIGI_3                    (1 << 3)
+#define NIXIE_PCB_FIX                 (FIX_DIGI_0 /*| FIX_DIGI_1 | FIX_DIGI_2 | FIX_DIGI_3*/)
 
 typedef struct _notification_tasklet {
     unsigned char connected;
