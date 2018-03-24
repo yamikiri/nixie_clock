@@ -623,6 +623,24 @@ void specifyTrackId(uint16_t trackId)
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
 }
 
+void specifyVolume(uint8_t vol)
+{
+    dfplayer_instrction inst = {
+        .startByte = 0x7e,
+        .version = 0xff,
+        .length = 6,
+        .cmd = 0x06,
+        .feedback = 0,
+        .paraMSB = 0,
+        .paraLSB = vol,
+//        .checksumMSB = 0xFE,
+//        .checksumLSB = 0xF0,
+        .endByte = 0xef
+    };
+    calculateChecksum(&inst);
+    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
+}
+
 void playback(uint16_t trackId)
 {
     //0x0D
@@ -678,6 +696,8 @@ static void DFPlayerTask(void* args)
     /* Print the prompt content to the test port */
     // hal_uart_send_dma(HAL_UART_1, (const uint8_t *)UART_PROMPT_INFO, UART_PROMPT_INFO_SIZE);
     specifySD();
+    vTaskDelay(MS2TICK(1000));
+    specifyVolume(30);
     vTaskDelay(MS2TICK(1000));
     //playback(gCurrentTrack++);
 

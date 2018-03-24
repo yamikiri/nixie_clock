@@ -45,6 +45,7 @@
 #include "FreeRTOS.h"
 #include "nvdm.h"
 #include "sntp.h"
+#include "dfplayer.h"
 
 volatile notification_tasklet gNotiTasklet;
 volatile void *gBLE_BroadcastNotiIndication;

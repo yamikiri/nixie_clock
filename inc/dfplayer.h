@@ -21,5 +21,6 @@ typedef struct _dfplayer_instruct {
 void playback(uint16_t trackId);
 void specifyTrackId(uint16_t trackId);
 void specifySD(void);
+void specifyVolume(uint8_t vol);
 
 #endif
