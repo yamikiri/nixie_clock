@@ -89,12 +89,14 @@ static const bt_gatts_service_t _bt_if_ble_fota_service = {
 #define CLOCK_SERVICE_UUID                  (0x1801)          /* Data Transfer Over Gatt Service UUID. */
 #define CLOCK_WIFI_SSID_CHAR_UUID           (0x2A3D)          /* Read Characteristic UUID. */
 #define CLOCK_WIFI_PWD_CHAR_UUID            (0x2A3D)          /* Write Characteristic UUID. */
+#define CLOCK_WIFI_UPDATED_CHAR_UUID        (0x2A05)          /* Write Characteristic UUID. */
 
 /************************************************
 *   Global
 *************************************************/
 const bt_uuid_t CLOCK_HANDLE_WIFI_SSID_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_WIFI_SSID_CHAR_UUID);
 const bt_uuid_t CLOCK_HANDLE_WIFI_PWD_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_WIFI_PWD_CHAR_UUID);
+const bt_uuid_t CLOCK_HANDLE_WIFI_UPDATED_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_WIFI_UPDATED_CHAR_UUID);
 
 enum {
     CLOCK_HANDLE_START = 0x0001,
@@ -103,6 +105,8 @@ enum {
     CLOCK_HANDLE_WIFI_SSID_CHAR_STRING_VALUE,
     CLOCK_HANDLE_WIFI_PWD_CHAR_STRING,
     CLOCK_HANDLE_WIFI_PWD_CHAR_STRING_VALUE,
+    CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED,
+    CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED_VALUE,
     CLOCK_HANDLE_END
 };
 
@@ -111,6 +115,7 @@ enum {
 *************************************************/
 static uint32_t ble_clock_wifi_ssid_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
 static uint32_t ble_clock_wifi_pwd_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+static uint32_t ble_clock_wifi_updated_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
 
 BT_GATTS_NEW_PRIMARY_SERVICE_16(bt_if_clock_primary_service, CLOCK_SERVICE_UUID);
 
@@ -128,12 +133,21 @@ BT_GATTS_NEW_CHARC_16(bt_if_clock_wifi_pwd_char,
 BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_wifi_pwd_char_value, CLOCK_HANDLE_WIFI_PWD_CHAR_UUID128,
                     BT_GATTS_REC_PERM_WRITABLE|BT_GATTS_REC_PERM_READABLE, ble_clock_wifi_pwd_char_callback);
 
+BT_GATTS_NEW_CHARC_16(bt_if_clock_wifi_updated_char,
+                      BT_GATT_CHARC_PROP_READ, CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED,
+                      CLOCK_WIFI_UPDATED_CHAR_UUID);
+
+BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_wifi_updated_char_service_changed, CLOCK_HANDLE_WIFI_UPDATED_CHAR_UUID128,
+                    BT_GATTS_REC_PERM_WRITABLE, ble_clock_wifi_updated_char_callback);
+
 static const bt_gatts_service_rec_t *bt_if_clock_service_rec[] = {
     (const bt_gatts_service_rec_t *) &bt_if_clock_primary_service,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_ssid_char,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_ssid_char_value,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_pwd_char,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_pwd_char_value,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_updated_char,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_updated_char_service_changed,
 };
 
 const bt_gatts_service_t bt_if_clock_service = {
@@ -172,7 +186,7 @@ static uint32_t ble_clock_wifi_ssid_char_callback (const uint8_t rw, uint16_t ha
             /* To handle write request */
             copy_size = (size > buf_size)?buf_size:size;
             memcpy(gConfig.ssid, data, copy_size+1);
-            wifi_config_set_ssid(WIFI_PORT_STA, gConfig.ssid, copy_size);
+            wifi_config_set_ssid(WIFI_PORT_STA, gConfig.ssid, copy_size+1);
             return copy_size;
         default:
             return BT_STATUS_SUCCESS;
@@ -199,13 +213,27 @@ static uint32_t ble_clock_wifi_pwd_char_callback (const uint8_t rw, uint16_t han
             /* To handle write request */
             copy_size = (size > buf_size)?buf_size:size;
             memcpy(gConfig.pwd, data, copy_size+1);
-            wifi_config_set_wpa_psk_key(WIFI_PORT_STA, gConfig.pwd, copy_size);
+            wifi_config_set_wpa_psk_key(WIFI_PORT_STA, gConfig.pwd, copy_size+1);
             return copy_size;
         default:
             return BT_STATUS_SUCCESS;
     }
 }
 
+static uint32_t ble_clock_wifi_updated_char_callback (const uint8_t rw, uint16_t handle,
+    void *data, uint16_t size, uint16_t offset)
+{
+    uint32_t ssid_len = strlen(gConfig.ssid);
+    uint32_t pwd_len = strlen(gConfig.pwd);
+    if (rw == BT_GATTS_CALLBACK_WRITE && ssid_len > 0 && pwd_len > 0) {
+        wifi_config_reload_setting();
+        lwip_net_stop(WIFI_MODE_STA_ONLY);
+        lwip_net_start(WIFI_MODE_STA_ONLY);
+        return BT_STATUS_SUCCESS;
+    } else {
+        return BT_STATUS_SUCCESS;
+    }
+}
 
 //When GATTS get req from remote client, GATTS will call bt_get_gatt_server() to get application's gatt service DB.
 //You have to return the DB(bt_gatts_service_t pointer) to gatts stack.

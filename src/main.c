@@ -487,22 +487,26 @@ static void gpio_table_init(void)
     hal_gpio_init(HAL_GPIO_28);
     hal_pinmux_set_function(HAL_GPIO_28, HAL_GPIO_28_I2C1_DATA);
 
+    //sec led
     hal_gpio_init(HAL_GPIO_32);
     hal_pinmux_set_function(HAL_GPIO_32, HAL_GPIO_32_GPIO32);
     hal_gpio_set_direction(HAL_GPIO_32, HAL_GPIO_DIRECTION_OUTPUT);
     hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_LOW);
-    // hal_gpio_init(HAL_GPIO_29);
-    // hal_pinmux_set_function(HAL_GPIO_29, HAL_GPIO_29_GPIO29);
-    // hal_gpio_set_direction(HAL_GPIO_29, HAL_GPIO_DIRECTION_OUTPUT);
-    // hal_gpio_set_output(HAL_GPIO_29, HAL_GPIO_DATA_LOW);
-    // hal_gpio_init(HAL_GPIO_30);
-    // hal_pinmux_set_function(HAL_GPIO_30, HAL_GPIO_30_GPIO30);
-    // hal_gpio_set_direction(HAL_GPIO_30, HAL_GPIO_DIRECTION_OUTPUT);
-    // hal_gpio_set_output(HAL_GPIO_30, HAL_GPIO_DATA_LOW);
-    // hal_gpio_init(HAL_GPIO_31);
-    // hal_pinmux_set_function(HAL_GPIO_31, HAL_GPIO_31_GPIO31);
-    // hal_gpio_set_direction(HAL_GPIO_31, HAL_GPIO_DIRECTION_OUTPUT);
-    // hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
+    //nixie power switch
+    hal_gpio_init(HAL_GPIO_29);
+    hal_pinmux_set_function(HAL_GPIO_29, HAL_GPIO_29_GPIO29);
+    hal_gpio_set_direction(HAL_GPIO_29, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(HAL_GPIO_29, HAL_GPIO_DATA_HIGH);
+    //back light led power switch
+    hal_gpio_init(HAL_GPIO_30);
+    hal_pinmux_set_function(HAL_GPIO_30, HAL_GPIO_30_GPIO30);
+    hal_gpio_set_direction(HAL_GPIO_30, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(HAL_GPIO_30, HAL_GPIO_DATA_HIGH);
+    //indicator led power switch
+    hal_gpio_init(HAL_GPIO_31);
+    hal_pinmux_set_function(HAL_GPIO_31, HAL_GPIO_31_GPIO31);
+    hal_gpio_set_direction(HAL_GPIO_31, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
 }
 
 /* Private variables ---------------------------------------------------------*/
