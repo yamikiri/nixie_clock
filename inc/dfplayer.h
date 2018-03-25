@@ -22,5 +22,9 @@ void playback(uint16_t trackId);
 void specifyTrackId(uint16_t trackId);
 void specifySD(void);
 void specifyVolume(uint8_t vol);
+void queryTotalTracks(void);
+
+extern volatile uint16_t gCurrentTrack;
+extern volatile uint16_t gTotalTracks;
 
 #endif

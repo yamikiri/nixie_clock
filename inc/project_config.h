@@ -90,6 +90,7 @@ typedef struct _alarm_config {
     unsigned char AlarmEnable;
     unsigned char AlarmType;
     unsigned char AlarmMusicIndex;
+    unsigned char AlarmMusicPlayMode;
     unsigned char AlarmSchedule[7];
     unsigned char AlarmHour;
     unsigned char AlarmMinute;
@@ -114,7 +115,6 @@ typedef struct _clock_configurations {
 
 extern volatile clock_configurations gConfig;
 extern volatile notification_tasklet gNotiTasklet;
-extern volatile uint16_t gCurrentTrack;
 extern char volatile gTimeStringCache[20];
 extern volatile void* gBLE_BroadcastNotiIndication;
 extern volatile void *gBLE_WifiConnectedNotiIndication;
