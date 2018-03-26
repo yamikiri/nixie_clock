@@ -67,6 +67,8 @@
 #include "nvdm.h"
 #include "hal.h"
 
+#include "sntp.h"
+
 clock_configurations gConfig;
 
 /* Create the log control block as user wishes. Here we use 'template' as module name.
@@ -356,16 +358,6 @@ static void pcf8574_write(uint8_t high, uint8_t low)
     hal_i2c_master_deinit(i2c_port);
 }
 
-#include "hal.h"
-#include "sntp.h"
-#include <time.h>
-#define NTP_SERVER1 "time.stdtime.gov.tw"
-#define NTP_SERVER2 "clock.stdtime.gov.tw"
-#define TIMEZONE_OFFSET     8
-#define CURR_CENTURY 2000
-#define US2TICK(us) (us/(1000*portTICK_RATE_MS))
-#define MS2TICK(ms) (ms/(portTICK_RATE_MS))
-
 static void _timezone_shift(hal_rtc_time_t* t, int offset_hour)
 {
     struct tm gt;
@@ -429,17 +421,22 @@ static void set7seg(uint8_t h, uint8_t m)
     }
 #else
     static uint8_t sec = 0;
+    static uint8_t min = 255;
     if ((sec++%2) == 0) {
         hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_HIGH);
     } else {
         hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_LOW);
     }
-    pcf8574_write(h, m);
+    if (min != m) {
+        pcf8574_write(h, m);
+        min = m;
+    }
 #endif
 }
 
 static void _sntp_check_loop(void)
 {
+    static uint8_t last_min = 255;
     hal_rtc_time_t r_time;
     hal_rtc_status_t ret;
 
@@ -447,19 +444,15 @@ static void _sntp_check_loop(void)
         ret = hal_rtc_get_time(&r_time);
         if (ret == 0)
         {
-            char buf[20];
-
-            _timezone_shift(&r_time, TIMEZONE_OFFSET);
-            LOG_I(app, "%04d/%d/%d %02d:%02d:%02d", r_time.rtc_year+CURR_CENTURY, r_time.rtc_mon, r_time.rtc_day, r_time.rtc_hour, r_time.rtc_min, r_time.rtc_sec);
-
-            snprintf(buf, 19, "%04d/%d/%d", r_time.rtc_year+CURR_CENTURY, r_time.rtc_mon, r_time.rtc_day);
-            snprintf(buf, 19, "%02d:%02d:%02d", r_time.rtc_hour, r_time.rtc_min, r_time.rtc_sec);
-
+            _timezone_shift(&r_time, gConfig.timeZone);
+            if (last_min != r_time.rtc_min) {
+                LOG_I(app, "%04d/%d/%d %02d:%02d:%02d", r_time.rtc_year+CURR_CENTURY, r_time.rtc_mon, r_time.rtc_day, r_time.rtc_hour, r_time.rtc_min, r_time.rtc_sec);
+                last_min = r_time.rtc_min;
+            }
             set7seg(r_time.rtc_hour, r_time.rtc_min);
         }
-
-        // wait 1 sec and retry
-        vTaskDelay(MS2TICK(1000));
+        // wait 0.5 sec and retry
+        vTaskDelay(MS2TICK(500));
     }
 }
 
@@ -471,7 +464,7 @@ static void main_task(void *args)
     sntp_init();
     LOG_I(app, "SNTP inited");
 
-    vTaskDelay(MS2TICK(500));
+    vTaskDelay(MS2TICK(1000));
     _sntp_check_loop();
 }
 
@@ -635,7 +628,7 @@ static void initializeGlobalConfiguration(clock_configurations *config)
     memcpy(config->magic, "\xAA\x55", 2);
     config->version = CLOCK_CONFIG_VERSION;
     config->length = sizeof(clock_configurations);
-    config->timeZone = 8;
+    config->timeZone = TIMEZONE_OFFSET;
     memcpy(config->ssid, NVDM_DEFAULT_SSID, strlen(NVDM_DEFAULT_SSID));
     memcpy(config->pwd, NVDM_DEFAULT_PWD, strlen(NVDM_DEFAULT_PWD));
     config->nAlarms = 0;
@@ -727,7 +720,7 @@ int main(void)
         }
 
         if (dirtyflag) {
-            nvdm_write_data_item(NVDM_GRP, NVDM_GLOBAL_CONFIG, NVDM_DATA_ITEM_TYPE_RAW_DATA, (uint8_t *)&gConfig, sizeof(gConfig));
+            nvdmStatus = nvdm_write_data_item(NVDM_GRP, NVDM_GLOBAL_CONFIG, NVDM_DATA_ITEM_TYPE_RAW_DATA, (uint8_t *)&gConfig, sizeof(gConfig));
             if (nvdmStatus == NVDM_STATUS_OK) {
                 LOG_I(app, "saved global configurations.");
             } else {

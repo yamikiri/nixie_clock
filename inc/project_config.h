@@ -32,6 +32,14 @@
  * MEDIATEK FOR SUCH MEDIATEK SOFTWARE AT ISSUE.
  */
 
+#include <time.h>
+#define NTP_SERVER1 "time.stdtime.gov.tw"
+#define NTP_SERVER2 "clock.stdtime.gov.tw"
+#define TIMEZONE_OFFSET     8
+#define CURR_CENTURY 2000
+#define US2TICK(us) (us/(1000*portTICK_RATE_MS))
+#define MS2TICK(ms) (ms/(portTICK_RATE_MS))
+
 /* max supported connection number */
 #define BT_CONNECTION_MAX   16
 
@@ -44,6 +52,8 @@
 #define BT_TIMER_BUF_SIZE (BT_TIMER_NUM * BT_CONTROL_BLOCK_SIZE_OF_TIMER)
 #define BT_CONNECTION_BUF_SIZE (BT_CONNECTION_MAX* BT_CONTROL_BLOCK_SIZE_OF_LE_CONNECTION)
 
+#define DEVICE_MANUFACTURER           "BiotrumpSystem"
+#define DEVICE_MANUFACTURER_LEN       (14)
 
 #define APP_BLE_DEVICE_NAME           "IoT NixieClock"
 

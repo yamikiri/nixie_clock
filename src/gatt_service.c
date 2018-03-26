@@ -41,6 +41,9 @@
 #include "project_config.h"
 #include "wifi_lwip_helper.h"
 #include "wifi_api.h"
+#include "FreeRTOS.h"
+#include "nvdm.h"
+#include "sntp.h"
 
 //Declare every record here
 //service collects all bt_gatts_service_rec_t
@@ -82,29 +85,100 @@ static const bt_gatts_service_t _bt_if_ble_fota_service = {
     .records = _bt_if_ble_fota_service_rec
 };
 #endif
+/************************************************
+*   Macro
+*************************************************/
+#define CLOCK_PRIMARY_SERVICE_UUID                  (0x180A)          /* Data Transfer Over Gatt Service UUID. */
+#define CLOCK_PRIMARY_MANUFACTURER_CHAR_UUID        (0x2A29)          /* MANUFACTURER String UUID */
+
+/************************************************
+*   Global
+*************************************************/
+const bt_uuid_t CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_PRIMARY_MANUFACTURER_CHAR_UUID);
+
+enum {
+    CLOCK_PRIMARY_HANDLE_START = 0x0001,
+    CLOCK_PRIMARY_HANDLE_PRIMARY_SERVICE = CLOCK_PRIMARY_HANDLE_START,
+    CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_STRING,
+    CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_STRING_VALUE,
+    CLOCK_PRIMARY_HANDLE_END
+};
+
+/************************************************
+*   Utilities
+*************************************************/
+static uint32_t ble_clock_manufacturer_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+static const char manufacturer[] = {DEVICE_MANUFACTURER"\0"};
+
+BT_GATTS_NEW_PRIMARY_SERVICE_16(bt_if_clock_primary_service, CLOCK_PRIMARY_SERVICE_UUID);
+BT_GATTS_NEW_CHARC_16(bt_if_clock_manufacturer_char,
+                      BT_GATT_CHARC_PROP_READ, CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_STRING,
+                      CLOCK_PRIMARY_MANUFACTURER_CHAR_UUID);
+/*BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_manufacturer_char_value, CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_UUID128,
+                    BT_GATTS_REC_PERM_READABLE, ble_clock_manufacturer_char_callback);*/
+BT_GATTS_NEW_CHARC_VALUE_STR16(bt_if_clock_manufacturer_char_value, CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_UUID128,
+                    BT_GATTS_REC_PERM_READABLE, DEVICE_MANUFACTURER_LEN, DEVICE_MANUFACTURER);
+
+static const bt_gatts_service_rec_t *bt_if_clock_primary_service_rec[] = {
+    (const bt_gatts_service_rec_t *) &bt_if_clock_primary_service,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_manufacturer_char,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_manufacturer_char_value,
+};
+
+const bt_gatts_service_t _bt_if_clock_primary_service = {
+    .starting_handle = CLOCK_PRIMARY_HANDLE_START,
+    .ending_handle = CLOCK_PRIMARY_HANDLE_END - 1,
+    .required_encryption_key_size = 0,
+    .records = bt_if_clock_primary_service_rec
+};
+
+static uint32_t ble_clock_manufacturer_char_callback (const uint8_t rw, uint16_t handle,
+    void *data, uint16_t size, uint16_t offset)
+{
+    const char manufacturer[] = {DEVICE_MANUFACTURER};
+    uint32_t str_size = strlen(manufacturer);
+    uint32_t copy_size;
+    switch (rw) {
+        case BT_GATTS_CALLBACK_READ:
+            /* To handle read request. */
+            copy_size = (str_size > offset)?(str_size - offset):0;
+            if (size == 0) {
+                return str_size;
+            }
+            copy_size = (size > copy_size)?copy_size:size;
+            memcpy(data, manufacturer+offset, copy_size);
+            return copy_size;
+        default:
+            return BT_STATUS_SUCCESS;
+    }
+}
 
 /************************************************
 *   Macro
 *************************************************/
 #define CLOCK_SERVICE_UUID                  (0x1801)          /* Data Transfer Over Gatt Service UUID. */
-#define CLOCK_WIFI_SSID_CHAR_UUID           (0x2A3D)          /* Read Characteristic UUID. */
-#define CLOCK_WIFI_PWD_CHAR_UUID            (0x2A3D)          /* Write Characteristic UUID. */
-#define CLOCK_WIFI_UPDATED_CHAR_UUID        (0x2A05)          /* Write Characteristic UUID. */
+#define CLOCK_WIFI_SSID_CHAR_UUID           (0x2A3D)          /* SSID Characteristic UUID. */
+#define CLOCK_WIFI_PWD_CHAR_UUID            (0x2A3D)          /* PASSWORD Characteristic UUID. */
+#define CLOCK_TIMEZONE_CHAR_UUID            (0x2A0E)          /* TimeZone Characteristic UUID. */
+#define CLOCK_WIFI_UPDATED_CHAR_UUID        (0x2A05)          /* Update Wifi Characteristic UUID. */
 
 /************************************************
 *   Global
 *************************************************/
 const bt_uuid_t CLOCK_HANDLE_WIFI_SSID_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_WIFI_SSID_CHAR_UUID);
 const bt_uuid_t CLOCK_HANDLE_WIFI_PWD_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_WIFI_PWD_CHAR_UUID);
+const bt_uuid_t CLOCK_HANDLE_TIMEZONE_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_TIMEZONE_CHAR_UUID);
 const bt_uuid_t CLOCK_HANDLE_WIFI_UPDATED_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_WIFI_UPDATED_CHAR_UUID);
 
 enum {
-    CLOCK_HANDLE_START = 0x0001,
+    CLOCK_HANDLE_START = 0x0011,
     CLOCK_HANDLE_PRIMARY_SERVICE = CLOCK_HANDLE_START,
     CLOCK_HANDLE_WIFI_SSID_CHAR_STRING,
     CLOCK_HANDLE_WIFI_SSID_CHAR_STRING_VALUE,
     CLOCK_HANDLE_WIFI_PWD_CHAR_STRING,
     CLOCK_HANDLE_WIFI_PWD_CHAR_STRING_VALUE,
+    CLOCK_HANDLE_TIMEZONE_CHAR,
+    CLOCK_HANDLE_TIMEZONE_CHAR_VALUE,
     CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED,
     CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED_VALUE,
     CLOCK_HANDLE_END
@@ -115,9 +189,10 @@ enum {
 *************************************************/
 static uint32_t ble_clock_wifi_ssid_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
 static uint32_t ble_clock_wifi_pwd_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+static uint32_t ble_clock_timezone_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
 static uint32_t ble_clock_wifi_updated_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
 
-BT_GATTS_NEW_PRIMARY_SERVICE_16(bt_if_clock_primary_service, CLOCK_SERVICE_UUID);
+BT_GATTS_NEW_PRIMARY_SERVICE_16(bt_if_clock_setting_service, CLOCK_SERVICE_UUID);
 
 BT_GATTS_NEW_CHARC_16(bt_if_clock_wifi_ssid_char,
                       BT_GATT_CHARC_PROP_READ, CLOCK_HANDLE_WIFI_SSID_CHAR_STRING,
@@ -133,6 +208,13 @@ BT_GATTS_NEW_CHARC_16(bt_if_clock_wifi_pwd_char,
 BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_wifi_pwd_char_value, CLOCK_HANDLE_WIFI_PWD_CHAR_UUID128,
                     BT_GATTS_REC_PERM_WRITABLE|BT_GATTS_REC_PERM_READABLE, ble_clock_wifi_pwd_char_callback);
 
+BT_GATTS_NEW_CHARC_16(bt_if_clock_timezone_char,
+                      BT_GATT_CHARC_PROP_READ, CLOCK_HANDLE_TIMEZONE_CHAR,
+                      CLOCK_TIMEZONE_CHAR_UUID);
+
+BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_timezone_char_value, CLOCK_HANDLE_TIMEZONE_CHAR_UUID128,
+                    BT_GATTS_REC_PERM_WRITABLE|BT_GATTS_REC_PERM_READABLE, ble_clock_timezone_char_callback);
+
 BT_GATTS_NEW_CHARC_16(bt_if_clock_wifi_updated_char,
                       BT_GATT_CHARC_PROP_READ, CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED,
                       CLOCK_WIFI_UPDATED_CHAR_UUID);
@@ -141,16 +223,18 @@ BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_wifi_updated_char_service_changed,
                     BT_GATTS_REC_PERM_WRITABLE, ble_clock_wifi_updated_char_callback);
 
 static const bt_gatts_service_rec_t *bt_if_clock_service_rec[] = {
-    (const bt_gatts_service_rec_t *) &bt_if_clock_primary_service,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_setting_service,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_ssid_char,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_ssid_char_value,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_pwd_char,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_pwd_char_value,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_timezone_char,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_timezone_char_value,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_updated_char,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_updated_char_service_changed,
 };
 
-const bt_gatts_service_t bt_if_clock_service = {
+const bt_gatts_service_t _bt_if_clock_service = {
     .starting_handle = CLOCK_HANDLE_START,
     .ending_handle = CLOCK_HANDLE_END - 1,
     .required_encryption_key_size = 0,
@@ -162,7 +246,8 @@ static const bt_gatts_service_t * _bt_if_gatt_server[] = {
     //&bt_if_gatt_service,//0x0011
     //&_bt_if_ble_fota_service, //0x0014-0x0017
     //&bt_if_dogp_service,//0x0020-0x0025
-    &bt_if_clock_service,
+    &_bt_if_clock_primary_service,
+    &_bt_if_clock_service,
     NULL
     };
 
@@ -185,8 +270,9 @@ static uint32_t ble_clock_wifi_ssid_char_callback (const uint8_t rw, uint16_t ha
         case BT_GATTS_CALLBACK_WRITE:
             /* To handle write request */
             copy_size = (size > buf_size)?buf_size:size;
-            memcpy(gConfig.ssid, data, copy_size+1);
-            wifi_config_set_ssid(WIFI_PORT_STA, gConfig.ssid, copy_size+1);
+            memcpy(gConfig.ssid, data, copy_size);
+            memset(gConfig.ssid + copy_size, 0x0, 1);
+            wifi_config_set_ssid(WIFI_PORT_STA, gConfig.ssid, copy_size);
             return copy_size;
         default:
             return BT_STATUS_SUCCESS;
@@ -212,8 +298,33 @@ static uint32_t ble_clock_wifi_pwd_char_callback (const uint8_t rw, uint16_t han
         case BT_GATTS_CALLBACK_WRITE:
             /* To handle write request */
             copy_size = (size > buf_size)?buf_size:size;
-            memcpy(gConfig.pwd, data, copy_size+1);
-            wifi_config_set_wpa_psk_key(WIFI_PORT_STA, gConfig.pwd, copy_size+1);
+            memcpy(gConfig.pwd, data, copy_size);
+            memset(gConfig.pwd + copy_size, 0x0, 1);
+            wifi_config_set_wpa_psk_key(WIFI_PORT_STA, gConfig.pwd, copy_size);
+            return copy_size;
+        default:
+            return BT_STATUS_SUCCESS;
+    }
+}
+
+static uint32_t ble_clock_timezone_char_callback (const uint8_t rw, uint16_t handle,
+    void *data, uint16_t size, uint16_t offset)
+{
+    uint32_t copy_size;
+    switch (rw) {
+        case BT_GATTS_CALLBACK_READ:
+            /* To handle read request. */
+            if (size == 0) {
+                return sizeof(gConfig.timeZone);
+            }
+            //memcpy(data, &gConfig.timeZone, sizeof(gConfig.timeZone));
+            *(int *)data = gConfig.timeZone;
+            return sizeof(gConfig.timeZone);
+        case BT_GATTS_CALLBACK_WRITE:
+            /* To handle write request */
+            copy_size = sizeof(gConfig.timeZone);
+            // memcpy(&gConfig.timeZone, data, copy_size);
+            gConfig.timeZone = *(int *)data;
             return copy_size;
         default:
             return BT_STATUS_SUCCESS;
@@ -223,12 +334,25 @@ static uint32_t ble_clock_wifi_pwd_char_callback (const uint8_t rw, uint16_t han
 static uint32_t ble_clock_wifi_updated_char_callback (const uint8_t rw, uint16_t handle,
     void *data, uint16_t size, uint16_t offset)
 {
+    nvdm_status_t nvdmStatus;
     uint32_t ssid_len = strlen(gConfig.ssid);
     uint32_t pwd_len = strlen(gConfig.pwd);
     if (rw == BT_GATTS_CALLBACK_WRITE && ssid_len > 0 && pwd_len > 0) {
+        LOG_I(app, "now reload wifi settings");
         wifi_config_reload_setting();
+        vTaskDelay(MS2TICK(10));
+        LOG_I(app, "now stop lwip");
         lwip_net_stop(WIFI_MODE_STA_ONLY);
+        vTaskDelay(MS2TICK(10));
+        LOG_I(app, "now start lwip");
         lwip_net_start(WIFI_MODE_STA_ONLY);
+        nvdmStatus = nvdm_write_data_item(NVDM_GRP, NVDM_GLOBAL_CONFIG, NVDM_DATA_ITEM_TYPE_RAW_DATA, (uint8_t *)&gConfig, sizeof(gConfig));
+        if (nvdmStatus == NVDM_STATUS_OK) {
+            LOG_I(app, "saved global configurations.");
+        } else {
+            LOG_I(app, "failed to save global configurations.(0x%X)", nvdmStatus);
+        }
+        sntp_init();
         return BT_STATUS_SUCCESS;
     } else {
         return BT_STATUS_SUCCESS;
