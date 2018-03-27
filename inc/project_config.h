@@ -66,6 +66,12 @@
 #define CLOCK_CONFIG_VERSION          (2)
 #define MAX_AMOUNT_ALARMS             (3)
 
+typedef struct _notification_tasklet {
+    unsigned char connected;
+    unsigned char enable;
+    unsigned short conn_handle;
+} notification_tasklet;
+
 typedef struct _alarm_config {
     unsigned char AlarmEnable;
     unsigned char AlarmType;
@@ -91,3 +97,6 @@ typedef struct _clock_configurations {
 #define NVDM_DEFAULT_PWD "B10trumP"
 
 extern clock_configurations gConfig;
+extern notification_tasklet gNotiTasklet;
+extern char gTimeStringCache[20];
+extern void* gBLE_NotiIndication;

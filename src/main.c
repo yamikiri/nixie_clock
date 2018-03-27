@@ -54,6 +54,7 @@
 /* ble related header */
 #include "bt_init.h"
 #include "bt_gatts.h"
+#include "bt_gattc.h"
 #include "bt_gap_le.h"
 #include "bt_uuid.h"
 #include "bt_debug.h"
@@ -70,6 +71,7 @@
 #include "sntp.h"
 
 clock_configurations gConfig;
+char gTimeStringCache[20];
 
 /* Create the log control block as user wishes. Here we use 'template' as module name.
  * User needs to define their own log control blocks as project needs.
@@ -167,6 +169,10 @@ bt_status_t app_bt_event_callback(bt_msg_type_t msg, bt_status_t status, void *b
 
     case BT_GAP_LE_DISCONNECT_IND:
         LOG_I(app, "[BT_GAP_LE_DISCONNECT_IND](%d)", status);
+        LOG_I(app, "************************");
+        LOG_I(app, "BLE disconnected!!");
+        LOG_I(app, "************************");
+        gNotiTasklet.connected = 0;
 
         // start advertising
         app_start_advertising();
@@ -182,6 +188,7 @@ bt_status_t app_bt_event_callback(bt_msg_type_t msg, bt_status_t status, void *b
         LOG_I(app, "BLE connected!!");
         LOG_I(app, "************************");
         app_stop_advertising();
+        gNotiTasklet.connected = 1;
         break;
     }
 
@@ -446,7 +453,10 @@ static void _sntp_check_loop(void)
         {
             _timezone_shift(&r_time, gConfig.timeZone);
             if (last_min != r_time.rtc_min) {
-                LOG_I(app, "%04d/%d/%d %02d:%02d:%02d", r_time.rtc_year+CURR_CENTURY, r_time.rtc_mon, r_time.rtc_day, r_time.rtc_hour, r_time.rtc_min, r_time.rtc_sec);
+                snprintf(gTimeStringCache, sizeof(gTimeStringCache), "%04d/%02d/%02d %02d:%02d:%02d", \
+                        r_time.rtc_year+CURR_CENTURY, r_time.rtc_mon, r_time.rtc_day, r_time.rtc_hour, \
+                        r_time.rtc_min, r_time.rtc_sec);
+                LOG_I(app, "%s", gTimeStringCache);
                 last_min = r_time.rtc_min;
             }
             set7seg(r_time.rtc_hour, r_time.rtc_min);
@@ -671,6 +681,16 @@ static void dumpGlobalConfig(void)
     printAlarms();
 }
 
+void bt_notification_task(void* args)
+{
+    while(1) {
+        if(gNotiTasklet.connected == 1 && gNotiTasklet.enable == 1 && gBLE_NotiIndication != NULL) {
+            bt_gatts_send_charc_value_notification_indication(gNotiTasklet.conn_handle, (bt_gattc_charc_value_notification_indication_t *)gBLE_NotiIndication);
+        }
+        vTaskDelay(MS2TICK(1000));
+    }
+}
+
 /**
 * @brief       Main function
 * @param[in]   None.
@@ -693,6 +713,9 @@ int main(void)
     log_init(NULL, NULL, NULL);
 
     gpio_table_init();
+    memset(&gNotiTasklet, 0x00, sizeof(gNotiTasklet));
+    memset(gTimeStringCache, 0x00, sizeof(gTimeStringCache));
+    gBLE_NotiIndication = NULL;
     nvdmStatus = nvdm_init();
     //if (nvdmStatus == NVDM_STATUS_OK) {
         uint8_t dirtyflag = 0;
@@ -771,6 +794,7 @@ int main(void)
     */
 	xTaskCreate(main_task, "main task", 1024, NULL, 1, NULL);
     xTaskCreate(DFPlayerTask, "DFPlayerUart Task", 1024, NULL, 1, NULL);
+    //xTaskCreate(bt_notification_task, "BLE Notification Task", 1024, NULL, 1, NULL);
 
 
     /* Call this function to indicate the system initialize done. */

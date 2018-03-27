@@ -45,6 +45,9 @@
 #include "nvdm.h"
 #include "sntp.h"
 
+notification_tasklet gNotiTasklet;
+void *gBLE_NotiIndication;
+
 //Declare every record here
 //service collects all bt_gatts_service_rec_t
 //IMPORTAMT: handle:0x0000 is reserved, please start your handle from 0x0001
@@ -107,16 +110,11 @@ enum {
 /************************************************
 *   Utilities
 *************************************************/
-static uint32_t ble_clock_manufacturer_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
-static const char manufacturer[] = {DEVICE_MANUFACTURER"\0"};
-
 BT_GATTS_NEW_PRIMARY_SERVICE_16(bt_if_clock_primary_service, CLOCK_PRIMARY_SERVICE_UUID);
-BT_GATTS_NEW_CHARC_16(bt_if_clock_manufacturer_char,
-                      BT_GATT_CHARC_PROP_READ, CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_STRING,
+BT_GATTS_NEW_CHARC_16(bt_if_clock_manufacturer_char, \
+                      BT_GATT_CHARC_PROP_READ, CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_STRING, \
                       CLOCK_PRIMARY_MANUFACTURER_CHAR_UUID);
-/*BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_manufacturer_char_value, CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_UUID128,
-                    BT_GATTS_REC_PERM_READABLE, ble_clock_manufacturer_char_callback);*/
-BT_GATTS_NEW_CHARC_VALUE_STR16(bt_if_clock_manufacturer_char_value, CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_UUID128,
+BT_GATTS_NEW_CHARC_VALUE_STR16(bt_if_clock_manufacturer_char_value, CLOCK_PRIMARY_HANDLE_MANUFACTURER_CHAR_UUID128, \
                     BT_GATTS_REC_PERM_READABLE, DEVICE_MANUFACTURER_LEN, DEVICE_MANUFACTURER);
 
 static const bt_gatts_service_rec_t *bt_if_clock_primary_service_rec[] = {
@@ -132,22 +130,132 @@ const bt_gatts_service_t _bt_if_clock_primary_service = {
     .records = bt_if_clock_primary_service_rec
 };
 
-static uint32_t ble_clock_manufacturer_char_callback (const uint8_t rw, uint16_t handle,
+/************************************************
+*   Macro
+*************************************************/
+#define CLOCK_CURRENT_TIME_SERVICE_UUID             (0x1805)          /* Data Transfer Over Gatt Service UUID. */
+#define CLOCK_CURRENT_TIME_TIMEZONE_CHAR_UUID       (0x2A0E)          /* MANUFACTURER String UUID */
+#define CLOCK_CURRENT_TIME_BROADCAST_CHAR_UUID      (0x2A15)          /* MANUFACTURER String UUID */
+
+/************************************************
+*   Global
+*************************************************/
+const bt_uuid_t CLOCK_CURRENT_TIME_HANDLE_TIMEZONE_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_CURRENT_TIME_TIMEZONE_CHAR_UUID);
+const bt_uuid_t CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_CURRENT_TIME_BROADCAST_CHAR_UUID);
+
+enum {
+    CLOCK_CURRENT_TIME_HANDLE_START = 0x0011,
+    CLOCK_CURRENT_TIME_HANDLE_PRIMARY_SERVICE = CLOCK_CURRENT_TIME_HANDLE_START,
+    CLOCK_CURRENT_TIME_HANDLE_TIMEZONE_CHAR,
+    CLOCK_CURRENT_TIME_HANDLE_TIMEZONE_CHAR_VALUE,
+    CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR,
+    CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR_VALUE,
+    CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR_CCCD,
+    CLOCK_CURRENT_TIME_HANDLE_END
+};
+
+/************************************************
+*   Utilities
+*************************************************/
+static uint32_t ble_clock_current_time_timezone_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+static uint32_t ble_clock_current_time_broadcast_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+static uint32_t ble_clock_current_time_broadcast_char_cccd_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+
+BT_GATTS_NEW_PRIMARY_SERVICE_16(bt_if_clock_current_time_service, CLOCK_CURRENT_TIME_SERVICE_UUID);
+
+BT_GATTS_NEW_CHARC_16(bt_if_clock_current_time_timezone_char, \
+                      BT_GATT_CHARC_PROP_READ, CLOCK_CURRENT_TIME_HANDLE_TIMEZONE_CHAR, \
+                      CLOCK_CURRENT_TIME_TIMEZONE_CHAR_UUID);
+
+BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_current_time_timezone_char_value, CLOCK_CURRENT_TIME_HANDLE_TIMEZONE_CHAR_UUID128, \
+                    BT_GATTS_REC_PERM_READABLE, ble_clock_current_time_timezone_char_callback);
+
+BT_GATTS_NEW_CHARC_16(bt_if_clock_current_time_broadcast_char,
+                      BT_GATT_CHARC_PROP_READ | BT_GATT_CHARC_PROP_NOTIFY, CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR, CLOCK_CURRENT_TIME_BROADCAST_CHAR_UUID);
+
+BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_current_time_broadcast_char_value, CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR_UUID128,
+                    BT_GATTS_REC_PERM_READABLE, ble_clock_current_time_broadcast_char_callback);
+
+BT_GATTS_NEW_CLIENT_CHARC_CONFIG(bt_if_clock_current_time_broadcast_char_cccd,
+                                 BT_GATTS_REC_PERM_READABLE | BT_GATTS_REC_PERM_WRITABLE,
+                                 ble_clock_current_time_broadcast_char_cccd_callback);
+
+static const bt_gatts_service_rec_t *bt_if_clock_current_time_service_rec[] = {
+    (const bt_gatts_service_rec_t *) &bt_if_clock_current_time_service,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_current_time_timezone_char,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_current_time_timezone_char_value,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_current_time_broadcast_char,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_current_time_broadcast_char_value,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_current_time_broadcast_char_cccd,
+};
+
+const bt_gatts_service_t _bt_if_clock_current_time_service = {
+    .starting_handle = CLOCK_CURRENT_TIME_HANDLE_PRIMARY_SERVICE,
+    .ending_handle = CLOCK_CURRENT_TIME_HANDLE_END - 1,
+    .required_encryption_key_size = 0,
+    .records = bt_if_clock_current_time_service_rec
+};
+
+static uint32_t ble_clock_current_time_timezone_char_callback (const uint8_t rw, uint16_t handle,
     void *data, uint16_t size, uint16_t offset)
 {
-    const char manufacturer[] = {DEVICE_MANUFACTURER};
-    uint32_t str_size = strlen(manufacturer);
-    uint32_t copy_size;
     switch (rw) {
         case BT_GATTS_CALLBACK_READ:
             /* To handle read request. */
+            if (size == 0) {
+                return sizeof(gConfig.timeZone);
+            }
+            *(int *)data = gConfig.timeZone;
+            return sizeof(gConfig.timeZone);
+        default:
+            return BT_STATUS_SUCCESS;
+    }
+}
+
+static uint32_t ble_clock_current_time_broadcast_char_callback (const uint8_t rw, uint16_t handle,
+    void *data, uint16_t size, uint16_t offset)
+{
+    uint32_t str_size = strlen(gTimeStringCache);
+    uint32_t copy_size;
+    LOG_I(app, "ble_clock_current_time_broadcast_char_callback:%s",
+                rw?"BT_GATTS_CALLBACK_WRITE":"BT_GATTS_CALLBACK_READ");
+    switch (rw) {
+        case BT_GATTS_CALLBACK_READ:
             copy_size = (str_size > offset)?(str_size - offset):0;
             if (size == 0) {
                 return str_size;
             }
             copy_size = (size > copy_size)?copy_size:size;
-            memcpy(data, manufacturer+offset, copy_size);
+            memcpy(data, gTimeStringCache+offset, copy_size);
             return copy_size;
+        case BT_GATTS_CALLBACK_WRITE:
+        default:
+            return BT_STATUS_SUCCESS;
+    }
+}
+
+static uint32_t ble_clock_current_time_broadcast_char_cccd_callback (const uint8_t rw, uint16_t handle,
+    void *data, uint16_t size, uint16_t offset)
+{
+    unsigned char en = 0;
+    LOG_I(app, "ble_clock_current_time_broadcast_char_cccd_callback:%s, size: %d, data[0]=%u",
+                rw?"BT_GATTS_CALLBACK_WRITE":"BT_GATTS_CALLBACK_READ", size, *(unsigned char *)data);
+    switch (rw) {
+        case BT_GATTS_CALLBACK_WRITE:
+            gNotiTasklet.conn_handle = handle;
+            if (size >= 1) {
+                en = *(unsigned char *)data;
+            }
+            if (gBLE_NotiIndication == NULL) {
+                bt_gattc_charc_value_notification_indication_t *NotiIndication = malloc(sizeof(bt_gattc_charc_value_notification_indication_t));
+                NotiIndication->attribute_value_length = strlen(gTimeStringCache);
+                NotiIndication->att_req.opcode = BT_ATT_OPCODE_HANDLE_VALUE_NOTIFICATION;
+                NotiIndication->att_req.handle = CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR;
+                memcpy(&(NotiIndication->att_req.attribute_value), gTimeStringCache, sizeof(NotiIndication->att_req.attribute_value));
+                gBLE_NotiIndication = NotiIndication;
+            }
+            gNotiTasklet.enable = en;
+        case BT_GATTS_CALLBACK_READ:
         default:
             return BT_STATUS_SUCCESS;
     }
@@ -157,8 +265,8 @@ static uint32_t ble_clock_manufacturer_char_callback (const uint8_t rw, uint16_t
 *   Macro
 *************************************************/
 #define CLOCK_SERVICE_UUID                  (0x1801)          /* Data Transfer Over Gatt Service UUID. */
-#define CLOCK_WIFI_SSID_CHAR_UUID           (0x2A3D)          /* SSID Characteristic UUID. */
-#define CLOCK_WIFI_PWD_CHAR_UUID            (0x2A3D)          /* PASSWORD Characteristic UUID. */
+#define CLOCK_WIFI_SSID_CHAR_UUID           (0x331D)          /* SSID Characteristic UUID. */
+#define CLOCK_WIFI_PWD_CHAR_UUID            (0x9A33)          /* PASSWORD Characteristic UUID. */
 #define CLOCK_TIMEZONE_CHAR_UUID            (0x2A0E)          /* TimeZone Characteristic UUID. */
 #define CLOCK_WIFI_UPDATED_CHAR_UUID        (0x2A05)          /* Update Wifi Characteristic UUID. */
 
@@ -171,7 +279,7 @@ const bt_uuid_t CLOCK_HANDLE_TIMEZONE_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CL
 const bt_uuid_t CLOCK_HANDLE_WIFI_UPDATED_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(CLOCK_WIFI_UPDATED_CHAR_UUID);
 
 enum {
-    CLOCK_HANDLE_START = 0x0011,
+    CLOCK_HANDLE_START = 0x0021,
     CLOCK_HANDLE_PRIMARY_SERVICE = CLOCK_HANDLE_START,
     CLOCK_HANDLE_WIFI_SSID_CHAR_STRING,
     CLOCK_HANDLE_WIFI_SSID_CHAR_STRING_VALUE,
@@ -247,6 +355,7 @@ static const bt_gatts_service_t * _bt_if_gatt_server[] = {
     //&_bt_if_ble_fota_service, //0x0014-0x0017
     //&bt_if_dogp_service,//0x0020-0x0025
     &_bt_if_clock_primary_service,
+    &_bt_if_clock_current_time_service,
     &_bt_if_clock_service,
     NULL
     };
