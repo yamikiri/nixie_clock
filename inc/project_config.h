@@ -68,7 +68,7 @@
 
 typedef struct _notification_tasklet {
     unsigned char connected;
-    unsigned char enable;
+    unsigned short enable;
     unsigned short conn_handle;
 } notification_tasklet;
 
@@ -96,7 +96,7 @@ typedef struct _clock_configurations {
 #define NVDM_DEFAULT_SSID "solidyear_B10"
 #define NVDM_DEFAULT_PWD "B10trumP"
 
-extern clock_configurations gConfig;
-extern notification_tasklet gNotiTasklet;
-extern char gTimeStringCache[20];
-extern void* gBLE_NotiIndication;
+extern volatile clock_configurations gConfig;
+extern volatile notification_tasklet gNotiTasklet;
+extern char volatile gTimeStringCache[20];
+extern volatile void* gBLE_NotiIndication;

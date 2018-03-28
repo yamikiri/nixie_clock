@@ -37,6 +37,7 @@
 #include "bt_gattc.h"
 #include "bt_gatt.h"
 #include "bt_gatts.h"
+#include "bt_att.h"
 #include <string.h>
 #include "project_config.h"
 #include "wifi_lwip_helper.h"
@@ -45,8 +46,8 @@
 #include "nvdm.h"
 #include "sntp.h"
 
-notification_tasklet gNotiTasklet;
-void *gBLE_NotiIndication;
+volatile notification_tasklet gNotiTasklet;
+volatile void *gBLE_NotiIndication;
 
 //Declare every record here
 //service collects all bt_gatts_service_rec_t
@@ -234,6 +235,8 @@ static uint32_t ble_clock_current_time_broadcast_char_callback (const uint8_t rw
     }
 }
 
+//BT_GATTC_NEW_PREPARE_WRITE_REQ(NotiIndication, CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR_VALUE, 0, gTimeStringCache, 19);
+
 static uint32_t ble_clock_current_time_broadcast_char_cccd_callback (const uint8_t rw, uint16_t handle,
     void *data, uint16_t size, uint16_t offset)
 {
@@ -242,20 +245,26 @@ static uint32_t ble_clock_current_time_broadcast_char_cccd_callback (const uint8
                 rw?"BT_GATTS_CALLBACK_WRITE":"BT_GATTS_CALLBACK_READ", size, *(unsigned char *)data);
     switch (rw) {
         case BT_GATTS_CALLBACK_WRITE:
-            gNotiTasklet.conn_handle = handle;
+            // gNotiTasklet.conn_handle = handle;
             if (size >= 1) {
-                en = *(unsigned char *)data;
+                en = *(unsigned short *)data;
             }
             if (gBLE_NotiIndication == NULL) {
-                bt_gattc_charc_value_notification_indication_t *NotiIndication = malloc(sizeof(bt_gattc_charc_value_notification_indication_t));
+                bt_gattc_prepare_write_charc_req_t *NotiIndication = malloc(sizeof(bt_gattc_prepare_write_charc_req_t));
+                bt_att_prepare_write_req_t *att_req = malloc(sizeof(bt_att_prepare_write_req_t));
                 NotiIndication->attribute_value_length = strlen(gTimeStringCache);
-                NotiIndication->att_req.opcode = BT_ATT_OPCODE_HANDLE_VALUE_NOTIFICATION;
-                NotiIndication->att_req.handle = CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR;
-                memcpy(&(NotiIndication->att_req.attribute_value), gTimeStringCache, sizeof(NotiIndication->att_req.attribute_value));
+                att_req->opcode = BT_ATT_OPCODE_WRITE_REQUEST;//BT_ATT_OPCODE_PREPARE_WRITE_REQUEST;
+                att_req->attribute_handle = CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR_VALUE;
+                att_req->value_offset = 0;
+                att_req->part_attribute_value = gTimeStringCache;
+                NotiIndication->att_req = att_req;
                 gBLE_NotiIndication = NotiIndication;
             }
             gNotiTasklet.enable = en;
+            return sizeof(gNotiTasklet.enable);
         case BT_GATTS_CALLBACK_READ:
+            *(uint16_t *)data = gNotiTasklet.enable;
+            return sizeof(gNotiTasklet.enable);
         default:
             return BT_STATUS_SUCCESS;
     }

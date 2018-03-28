@@ -70,8 +70,8 @@
 
 #include "sntp.h"
 
-clock_configurations gConfig;
-char gTimeStringCache[20];
+volatile clock_configurations gConfig;
+char volatile gTimeStringCache[20];
 
 /* Create the log control block as user wishes. Here we use 'template' as module name.
  * User needs to define their own log control blocks as project needs.
@@ -173,6 +173,8 @@ bt_status_t app_bt_event_callback(bt_msg_type_t msg, bt_status_t status, void *b
         LOG_I(app, "BLE disconnected!!");
         LOG_I(app, "************************");
         gNotiTasklet.connected = 0;
+        gNotiTasklet.conn_handle = 0xFFFF;
+        gNotiTasklet.enable = 0;
 
         // start advertising
         app_start_advertising();
@@ -189,6 +191,7 @@ bt_status_t app_bt_event_callback(bt_msg_type_t msg, bt_status_t status, void *b
         LOG_I(app, "************************");
         app_stop_advertising();
         gNotiTasklet.connected = 1;
+        gNotiTasklet.conn_handle = connection_ind->connection_handle;
         break;
     }
 
@@ -452,10 +455,10 @@ static void _sntp_check_loop(void)
         if (ret == 0)
         {
             _timezone_shift(&r_time, gConfig.timeZone);
-            if (last_min != r_time.rtc_min) {
-                snprintf(gTimeStringCache, sizeof(gTimeStringCache), "%04d/%02d/%02d %02d:%02d:%02d", \
+            snprintf(gTimeStringCache, sizeof(gTimeStringCache), "%04d/%02d/%02d %02d:%02d:%02d", \
                         r_time.rtc_year+CURR_CENTURY, r_time.rtc_mon, r_time.rtc_day, r_time.rtc_hour, \
                         r_time.rtc_min, r_time.rtc_sec);
+            if (last_min != r_time.rtc_min) {
                 LOG_I(app, "%s", gTimeStringCache);
                 last_min = r_time.rtc_min;
             }
@@ -683,9 +686,19 @@ static void dumpGlobalConfig(void)
 
 void bt_notification_task(void* args)
 {
+    bt_gattc_prepare_write_charc_req_t *req;
+    bt_status_t ret;
     while(1) {
-        if(gNotiTasklet.connected == 1 && gNotiTasklet.enable == 1 && gBLE_NotiIndication != NULL) {
-            bt_gatts_send_charc_value_notification_indication(gNotiTasklet.conn_handle, (bt_gattc_charc_value_notification_indication_t *)gBLE_NotiIndication);
+        if(gNotiTasklet.connected == 1 && gNotiTasklet.enable == 1 && gBLE_NotiIndication != NULL &&
+            (gNotiTasklet.conn_handle != 0 && gNotiTasklet.conn_handle != 0xFFFF)) {
+            req = (bt_gattc_prepare_write_charc_req_t *)gBLE_NotiIndication;
+            ret = bt_gattc_prepare_write_charc(gNotiTasklet.conn_handle, gNotiTasklet.connected, 
+                0, req);
+            LOG_I(app, "send notification, handle:0x%X, attr_val_len:%d, opcode:0x%02X, " \
+            "attr_handle:0x%02X, attr_val_offset:%d, attr_value:%s, ret:%X", \
+            gNotiTasklet.conn_handle, req->attribute_value_length, req->att_req->opcode, \
+            req->att_req->attribute_handle, req->att_req->value_offset, \
+            req->att_req->part_attribute_value, ret);
         }
         vTaskDelay(MS2TICK(1000));
     }
@@ -794,7 +807,7 @@ int main(void)
     */
 	xTaskCreate(main_task, "main task", 1024, NULL, 1, NULL);
     xTaskCreate(DFPlayerTask, "DFPlayerUart Task", 1024, NULL, 1, NULL);
-    //xTaskCreate(bt_notification_task, "BLE Notification Task", 1024, NULL, 1, NULL);
+    xTaskCreate(bt_notification_task, "BLE Notification Task", 1024, NULL, 1, NULL);
 
 
     /* Call this function to indicate the system initialize done. */
