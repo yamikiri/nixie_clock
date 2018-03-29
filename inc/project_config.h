@@ -63,8 +63,9 @@
 #define SEND_THRESHOLD_SIZE           (8)
 #define RECEIVE_THRESHOLD_SIZE        (8)
 #define RECEIVE_ALERT_SIZE            (30)
-#define CLOCK_CONFIG_VERSION          (2)
+#define CLOCK_CONFIG_VERSION          (3)
 #define MAX_AMOUNT_ALARMS             (3)
+#define NIXIE_PCB_FIX                 (1)
 
 typedef struct _notification_tasklet {
     unsigned char connected;
@@ -87,6 +88,7 @@ typedef struct _clock_configurations {
     int timeZone;
     char ssid[33];
     char pwd[64];
+    unsigned char nixieFix;
     unsigned long nAlarms;
     alarm_config alarms[MAX_AMOUNT_ALARMS];
 } clock_configurations;

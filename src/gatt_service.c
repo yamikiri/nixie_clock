@@ -174,7 +174,7 @@ BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_current_time_timezone_char_value, 
 BT_GATTS_NEW_CHARC_16(bt_if_clock_current_time_broadcast_char,
                       BT_GATT_CHARC_PROP_READ | BT_GATT_CHARC_PROP_NOTIFY, CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR, CLOCK_CURRENT_TIME_BROADCAST_CHAR_UUID);
 
-BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_current_time_broadcast_char_value, CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR_UUID128,
+BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_current_time_broadcast_char_value, CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR_UUID128, \
                     BT_GATTS_REC_PERM_READABLE, ble_clock_current_time_broadcast_char_callback);
 
 BT_GATTS_NEW_CLIENT_CHARC_CONFIG(bt_if_clock_current_time_broadcast_char_cccd,
@@ -252,9 +252,9 @@ static uint32_t ble_clock_current_time_broadcast_char_cccd_callback (const uint8
             if (gBLE_NotiIndication == NULL) {
                 bt_gattc_prepare_write_charc_req_t *NotiIndication = malloc(sizeof(bt_gattc_prepare_write_charc_req_t));
                 bt_att_prepare_write_req_t *att_req = malloc(sizeof(bt_att_prepare_write_req_t));
-                NotiIndication->attribute_value_length = strlen(gTimeStringCache);
-                att_req->opcode = BT_ATT_OPCODE_WRITE_REQUEST;//BT_ATT_OPCODE_PREPARE_WRITE_REQUEST;
-                att_req->attribute_handle = CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR_VALUE;
+                NotiIndication->attribute_value_length = sizeof(gTimeStringCache);
+                att_req->opcode = BT_ATT_OPCODE_HANDLE_VALUE_NOTIFICATION;//BT_ATT_OPCODE_PREPARE_WRITE_REQUEST;
+                att_req->attribute_handle = CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR;
                 att_req->value_offset = 0;
                 att_req->part_attribute_value = gTimeStringCache;
                 NotiIndication->att_req = att_req;

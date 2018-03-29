@@ -312,6 +312,26 @@ static void i2c_callback(uint8_t slave_address, hal_i2c_callback_event_t event, 
     i2c_finish_flag = 1;
 }
 
+static uint8_t *nixiePCBfix(uint8_t *in)
+{
+    if (gConfig.nixieFix == 0)
+        return in;
+    switch(*in) {
+        case 0: *in = 1; break;
+        case 1: *in = 0; break;
+        case 2: *in = 9; break;
+        case 3: *in = 8; break;
+        case 4: *in = 7; break;
+        case 5: *in = 6; break;
+        case 6: *in = 5; break;
+        case 7: *in = 4; break;
+        case 8: *in = 3; break;
+        case 9: *in = 2; break;
+        default: break;
+    }
+    return in;
+}
+
 static uint8_t *resembleTo2Digit(uint8_t *in)
 {
     uint8_t temp = 0;
@@ -319,7 +339,7 @@ static uint8_t *resembleTo2Digit(uint8_t *in)
     temp = *in / 10;
     temp = temp << 4 | (*in % 10);
     *in = temp;
-    return in;
+    return nixiePCBfix(in);
 }
 
 /**
@@ -644,6 +664,7 @@ static void initializeGlobalConfiguration(clock_configurations *config)
     config->timeZone = TIMEZONE_OFFSET;
     memcpy(config->ssid, NVDM_DEFAULT_SSID, strlen(NVDM_DEFAULT_SSID));
     memcpy(config->pwd, NVDM_DEFAULT_PWD, strlen(NVDM_DEFAULT_PWD));
+    config->nixieFix = NIXIE_PCB_FIX;
     config->nAlarms = 0;
     LOG_I(app, "initialized global configurations.");
 }
