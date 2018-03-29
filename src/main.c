@@ -312,23 +312,35 @@ static void i2c_callback(uint8_t slave_address, hal_i2c_callback_event_t event, 
     i2c_finish_flag = 1;
 }
 
-static uint8_t *nixiePCBfix(uint8_t *in)
+static uint8_t mirrorMapping(uint8_t digit)
 {
-    if (gConfig.nixieFix == 0)
-        return in;
-    switch(*in) {
-        case 0: *in = 1; break;
-        case 1: *in = 0; break;
-        case 2: *in = 9; break;
-        case 3: *in = 8; break;
-        case 4: *in = 7; break;
-        case 5: *in = 6; break;
-        case 6: *in = 5; break;
-        case 7: *in = 4; break;
-        case 8: *in = 3; break;
-        case 9: *in = 2; break;
+    uint8_t ret;
+    switch(digit) {
+        case 0: ret = 1; break;
+        case 1: ret = 0; break;
+        case 2: ret = 9; break;
+        case 3: ret = 8; break;
+        case 4: ret = 7; break;
+        case 5: ret = 6; break;
+        case 6: ret = 5; break;
+        case 7: ret = 4; break;
+        case 8: ret = 3; break;
+        case 9: ret = 2; break;
         default: break;
     }
+    return ret;
+}
+
+static uint8_t *nixiePCBfix(uint8_t *in)
+{
+    uint8_t temp;
+    if (gConfig.nixieFix == 0)
+        return in;
+    temp = (*in >> 4) % 10;
+    temp = mirrorMapping(temp);
+    *in = (*in & 0x0F) % 10;
+    *in = mirrorMapping(*in);
+    *in = temp << 4 | *in;
     return in;
 }
 
