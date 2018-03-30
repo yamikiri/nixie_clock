@@ -174,7 +174,7 @@ bt_status_t app_bt_event_callback(bt_msg_type_t msg, bt_status_t status, void *b
         LOG_I(app, "************************");
         gNotiTasklet.connected = 0;
         gNotiTasklet.conn_handle = 0xFFFF;
-        gNotiTasklet.enable = 0;
+        memset(&gNotiTasklet.enables, 0x0, sizeof(task_enables));
 
         // start advertising
         app_start_advertising();
@@ -314,7 +314,7 @@ static void i2c_callback(uint8_t slave_address, hal_i2c_callback_event_t event, 
 
 static inline uint8_t mirrorMapping(uint8_t digit)
 {
-    uint8_t ret;
+    uint8_t ret = 0;
     switch(digit) {
         case 0: ret = 1; break;
         case 1: ret = 0; break;
@@ -726,18 +726,41 @@ static void dumpGlobalConfig(void)
 void bt_notification_task(void* args)
 {
     bt_gattc_prepare_write_charc_req_t *req;
+    bt_gattc_write_charc_req_t *wifi_req;
+    bt_gattc_charc_value_notification_indication_t noti;
+    
+    noti.attribute_value_length = 1;
+    noti.att_req.opcode = BT_ATT_OPCODE_HANDLE_VALUE_NOTIFICATION;//BT_ATT_OPCODE_PREPARE_WRITE_REQUEST;
+    noti.att_req.handle = 40;
+    noti.att_req.attribute_value[0] = 1;
+
     bt_status_t ret;
     while(1) {
-        if(gNotiTasklet.connected == 1 && gNotiTasklet.enable == 1 && gBLE_NotiIndication != NULL &&
-            (gNotiTasklet.conn_handle != 0 && gNotiTasklet.conn_handle != 0xFFFF)) {
-            req = (bt_gattc_prepare_write_charc_req_t *)gBLE_NotiIndication;
-            ret = bt_gattc_prepare_write_charc(gNotiTasklet.conn_handle, gNotiTasklet.connected, 
-                0, req);
-            LOG_I(app, "send notification, handle:0x%X, attr_val_len:%d, opcode:0x%02X, " \
-            "attr_handle:0x%02X, attr_val_offset:%d, attr_value:%s, ret:%X", \
-            gNotiTasklet.conn_handle, req->attribute_value_length, req->att_req->opcode, \
-            req->att_req->attribute_handle, req->att_req->value_offset, \
-            req->att_req->part_attribute_value, ret);
+        if(gNotiTasklet.connected == 1 && (gNotiTasklet.conn_handle != 0 && gNotiTasklet.conn_handle != 0xFFFF)) {
+            if (gNotiTasklet.enables.broadcast == 1 && gBLE_BroadcastNotiIndication != NULL) {
+                req = (bt_gattc_prepare_write_charc_req_t *)gBLE_BroadcastNotiIndication;
+                ret = bt_gattc_prepare_write_charc(gNotiTasklet.conn_handle, gNotiTasklet.connected, 
+                    1, req);
+                LOG_I(app, "send notification, handle:0x%X, attr_val_len:%d, opcode:0x%02X, " \
+                    "attr_handle:0x%02X, attr_val_offset:%d, attr_value:%s, ret:%X", \
+                    gNotiTasklet.conn_handle, req->attribute_value_length, req->att_req->opcode, \
+                    req->att_req->attribute_handle, req->att_req->value_offset, \
+                    req->att_req->part_attribute_value, ret);
+                vTaskDelay(MS2TICK(500));
+            }
+            if (gNotiTasklet.enables.wifiReady == 1 && gBLE_WifiConnectedNotiIndication != NULL) {
+                wifi_req = (bt_gattc_write_charc_req_t *)gBLE_WifiConnectedNotiIndication;
+                wifi_connection_get_link_status(&(wifi_req->att_req->attribute_value[0]));
+                ret = bt_gattc_write_charc(gNotiTasklet.conn_handle, wifi_req);
+                LOG_I(app, "send notification, handle:0x%X, attr_val_len:%d, opcode:0x%02X, " \
+                    "attr_handle:0x%02X, attr_value:%u, ret:%X", \
+                    gNotiTasklet.conn_handle, wifi_req->attribute_value_length, wifi_req->att_req->opcode, \
+                    wifi_req->att_req->attribute_handle, wifi_req->att_req->attribute_value[0], ret);
+                vTaskDelay(MS2TICK(500));
+            }
+            if (gNotiTasklet.enables.wifiReady == 1 || gNotiTasklet.enables.broadcast == 1) {
+                ret = bt_gatts_send_charc_value_notification_indication(gNotiTasklet.conn_handle, &noti);
+            }
         }
         vTaskDelay(MS2TICK(1000));
     }
@@ -767,7 +790,8 @@ int main(void)
     gpio_table_init();
     memset(&gNotiTasklet, 0x00, sizeof(gNotiTasklet));
     memset(gTimeStringCache, 0x00, sizeof(gTimeStringCache));
-    gBLE_NotiIndication = NULL;
+    gBLE_BroadcastNotiIndication = NULL;
+    gBLE_WifiConnectedNotiIndication = NULL;
     nvdmStatus = nvdm_init();
     //if (nvdmStatus == NVDM_STATUS_OK) {
         uint8_t dirtyflag = 0;

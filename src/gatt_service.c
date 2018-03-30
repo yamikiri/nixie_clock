@@ -47,7 +47,8 @@
 #include "sntp.h"
 
 volatile notification_tasklet gNotiTasklet;
-volatile void *gBLE_NotiIndication;
+volatile void *gBLE_BroadcastNotiIndication;
+volatile void *gBLE_WifiConnectedNotiIndication;
 
 //Declare every record here
 //service collects all bt_gatts_service_rec_t
@@ -172,7 +173,8 @@ BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_current_time_timezone_char_value, 
                     BT_GATTS_REC_PERM_READABLE, ble_clock_current_time_timezone_char_callback);
 
 BT_GATTS_NEW_CHARC_16(bt_if_clock_current_time_broadcast_char,
-                      BT_GATT_CHARC_PROP_READ | BT_GATT_CHARC_PROP_NOTIFY, CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR, CLOCK_CURRENT_TIME_BROADCAST_CHAR_UUID);
+                      BT_GATT_CHARC_PROP_READ | BT_GATT_CHARC_PROP_NOTIFY, CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR, \
+                      CLOCK_CURRENT_TIME_BROADCAST_CHAR_UUID);
 
 BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_current_time_broadcast_char_value, CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR_UUID128, \
                     BT_GATTS_REC_PERM_READABLE, ble_clock_current_time_broadcast_char_callback);
@@ -249,22 +251,22 @@ static uint32_t ble_clock_current_time_broadcast_char_cccd_callback (const uint8
             if (size >= 1) {
                 en = *(unsigned short *)data;
             }
-            if (gBLE_NotiIndication == NULL) {
+            if (gBLE_BroadcastNotiIndication == NULL) {
                 bt_gattc_prepare_write_charc_req_t *NotiIndication = malloc(sizeof(bt_gattc_prepare_write_charc_req_t));
                 bt_att_prepare_write_req_t *att_req = malloc(sizeof(bt_att_prepare_write_req_t));
                 NotiIndication->attribute_value_length = sizeof(gTimeStringCache);
                 att_req->opcode = BT_ATT_OPCODE_HANDLE_VALUE_NOTIFICATION;//BT_ATT_OPCODE_PREPARE_WRITE_REQUEST;
                 att_req->attribute_handle = CLOCK_CURRENT_TIME_HANDLE_BROADCAST_CHAR;
-                att_req->value_offset = 0;
+                att_req->value_offset = 0x2020;
                 att_req->part_attribute_value = gTimeStringCache;
                 NotiIndication->att_req = att_req;
-                gBLE_NotiIndication = NotiIndication;
+                gBLE_BroadcastNotiIndication = NotiIndication;
             }
-            gNotiTasklet.enable = en;
-            return sizeof(gNotiTasklet.enable);
+            gNotiTasklet.enables.broadcast = en;
+            return sizeof(gNotiTasklet.enables.broadcast);
         case BT_GATTS_CALLBACK_READ:
-            *(uint16_t *)data = gNotiTasklet.enable;
-            return sizeof(gNotiTasklet.enable);
+            *(uint16_t *)data = gNotiTasklet.enables.broadcast;
+            return sizeof(gNotiTasklet.enables.broadcast);
         default:
             return BT_STATUS_SUCCESS;
     }
@@ -298,6 +300,7 @@ enum {
     CLOCK_HANDLE_TIMEZONE_CHAR_VALUE,
     CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED,
     CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED_VALUE,
+    CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED_CCCD,
     CLOCK_HANDLE_END
 };
 
@@ -308,6 +311,7 @@ static uint32_t ble_clock_wifi_ssid_char_callback(const uint8_t rw, uint16_t han
 static uint32_t ble_clock_wifi_pwd_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
 static uint32_t ble_clock_timezone_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
 static uint32_t ble_clock_wifi_updated_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+static uint32_t ble_clock_wifi_updated_char_cccd_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
 
 BT_GATTS_NEW_PRIMARY_SERVICE_16(bt_if_clock_setting_service, CLOCK_SERVICE_UUID);
 
@@ -333,11 +337,15 @@ BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_timezone_char_value, CLOCK_HANDLE_
                     BT_GATTS_REC_PERM_WRITABLE|BT_GATTS_REC_PERM_READABLE, ble_clock_timezone_char_callback);
 
 BT_GATTS_NEW_CHARC_16(bt_if_clock_wifi_updated_char,
-                      BT_GATT_CHARC_PROP_READ, CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED,
+                      BT_GATT_CHARC_PROP_READ | BT_GATT_CHARC_PROP_NOTIFY, CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED,
                       CLOCK_WIFI_UPDATED_CHAR_UUID);
 
 BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_clock_wifi_updated_char_service_changed, CLOCK_HANDLE_WIFI_UPDATED_CHAR_UUID128,
-                    BT_GATTS_REC_PERM_WRITABLE, ble_clock_wifi_updated_char_callback);
+                    BT_GATTS_REC_PERM_READABLE | BT_GATTS_REC_PERM_WRITABLE, ble_clock_wifi_updated_char_callback);
+
+BT_GATTS_NEW_CLIENT_CHARC_CONFIG(bt_if_clock_wifi_updated_char_service_changed_cccd,
+                                 BT_GATTS_REC_PERM_READABLE | BT_GATTS_REC_PERM_WRITABLE,
+                                 ble_clock_wifi_updated_char_cccd_callback);
 
 static const bt_gatts_service_rec_t *bt_if_clock_service_rec[] = {
     (const bt_gatts_service_rec_t *) &bt_if_clock_setting_service,
@@ -349,6 +357,7 @@ static const bt_gatts_service_rec_t *bt_if_clock_service_rec[] = {
     (const bt_gatts_service_rec_t *) &bt_if_clock_timezone_char_value,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_updated_char,
     (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_updated_char_service_changed,
+    (const bt_gatts_service_rec_t *) &bt_if_clock_wifi_updated_char_service_changed_cccd
 };
 
 const bt_gatts_service_t _bt_if_clock_service = {
@@ -455,6 +464,7 @@ static uint32_t ble_clock_wifi_updated_char_callback (const uint8_t rw, uint16_t
     nvdm_status_t nvdmStatus;
     uint32_t ssid_len = strlen(gConfig.ssid);
     uint32_t pwd_len = strlen(gConfig.pwd);
+    uint8_t wifi_status;
     if (rw == BT_GATTS_CALLBACK_WRITE && ssid_len > 0 && pwd_len > 0) {
         LOG_I(app, "now reload wifi settings");
         wifi_config_reload_setting();
@@ -472,8 +482,44 @@ static uint32_t ble_clock_wifi_updated_char_callback (const uint8_t rw, uint16_t
         }
         sntp_init();
         return BT_STATUS_SUCCESS;
+    } else if ( rw == BT_GATTS_CALLBACK_READ) {
+        wifi_connection_get_link_status(&wifi_status);
+        *(uint8_t *)data = wifi_status;
+        return sizeof(uint8_t);
     } else {
         return BT_STATUS_SUCCESS;
+    }
+}
+
+static uint32_t ble_clock_wifi_updated_char_cccd_callback (const uint8_t rw, uint16_t handle,
+    void *data, uint16_t size, uint16_t offset)
+{
+    unsigned char en = 0;
+    LOG_I(app, "ble_clock_wifi_updated_char_cccd_callback:%s, size: %d, data[0]=%u",
+                rw?"BT_GATTS_CALLBACK_WRITE":"BT_GATTS_CALLBACK_READ", size, *(unsigned char *)data);
+    switch (rw) {
+        case BT_GATTS_CALLBACK_WRITE:
+            // gNotiTasklet.conn_handle = handle;
+            if (size >= 1) {
+                en = *(unsigned short *)data;
+            }
+            if (gBLE_WifiConnectedNotiIndication == NULL) {
+                bt_gattc_write_charc_req_t *NotiIndication = malloc(sizeof(bt_gattc_write_charc_req_t));
+                bt_att_write_req_t *att_req = malloc(sizeof(bt_att_write_req_t));
+                NotiIndication->attribute_value_length = 1;
+                att_req->opcode = BT_ATT_OPCODE_HANDLE_VALUE_NOTIFICATION;//BT_ATT_OPCODE_PREPARE_WRITE_REQUEST;
+                att_req->attribute_handle = CLOCK_HANDLE_WIFI_UPDATED_CHAR_SERVICE_UPDATED;
+                att_req->attribute_value[0] = 0;
+                NotiIndication->att_req = att_req;
+                gBLE_WifiConnectedNotiIndication = NotiIndication;
+            }
+            gNotiTasklet.enables.wifiReady = en;
+            return sizeof(gNotiTasklet.enables.wifiReady);
+        case BT_GATTS_CALLBACK_READ:
+            *(uint16_t *)data = gNotiTasklet.enables.wifiReady;
+            return sizeof(gNotiTasklet.enables.wifiReady);
+        default:
+            return BT_STATUS_SUCCESS;
     }
 }
 

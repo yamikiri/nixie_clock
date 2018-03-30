@@ -72,10 +72,15 @@
 #define FIX_DIGI_3                    (1 << 3)
 #define NIXIE_PCB_FIX                 (FIX_DIGI_0 /*| FIX_DIGI_1 | FIX_DIGI_2 | FIX_DIGI_3*/)
 
+typedef struct _task_enables {
+    unsigned short broadcast;
+    unsigned short wifiReady;
+} task_enables;
+
 typedef struct _notification_tasklet {
     unsigned char connected;
-    unsigned short enable;
     unsigned short conn_handle;
+    task_enables enables;
 } notification_tasklet;
 
 typedef struct _alarm_config {
@@ -106,4 +111,5 @@ typedef struct _clock_configurations {
 extern volatile clock_configurations gConfig;
 extern volatile notification_tasklet gNotiTasklet;
 extern char volatile gTimeStringCache[20];
-extern volatile void* gBLE_NotiIndication;
+extern volatile void* gBLE_BroadcastNotiIndication;
+extern volatile void *gBLE_WifiConnectedNotiIndication;
