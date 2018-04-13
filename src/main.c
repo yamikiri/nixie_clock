@@ -577,6 +577,8 @@ static void uart_read_from_input(hal_uart_callback_event_t event, void *user_dat
 
 static void send_DFPlayerCmd(uint8_t *cmd, int32_t cmdLen)
 {
+    LOG_I(app, "DFPlayer send: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
+                cmd[1], cmd[2], cmd[3], cmd[4], cmd[5], cmd[6], cmd[7], cmd[8]);
     hal_uart_send_dma(HAL_UART_1, cmd, cmdLen);
 }
 
@@ -597,7 +599,7 @@ void specifySD(void)
         .cmd = 0x09,
         .feedback = 0,
         .paraMSB = 0,
-        .paraLSB = 1,
+        .paraLSB = 2,
 //        .checksumMSB = 0xFE,
 //        .checksumLSB = 0xF0,
         .endByte = 0xef
@@ -614,14 +616,17 @@ void specifyTrackId(uint16_t trackId)
         .length = 6,
         .cmd = 0x03,
         .feedback = 0,
-        .paraMSB = (uint8_t)(trackId & 0xFF00 >> 8),
-        .paraLSB = (uint8_t)(trackId & 0xFF),
+        .paraMSB = 0,
+        .paraLSB = 0,
 //        .checksumMSB = 0xFE,
 //        .checksumLSB = 0xF0,
         .endByte = 0xef
     };
+    inst.paraMSB = (trackId & 0xFF00) >> 8;
+    inst.paraLSB = trackId & 0xFF;
     calculateChecksum(&inst);
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
+    gCurrentTrack = trackId;
 }
 
 void queryTotalTracks(void)
@@ -630,8 +635,8 @@ void queryTotalTracks(void)
         .startByte = 0x7e,
         .version = 0xff,
         .length = 6,
-        .cmd = 0x4B,
-        .feedback = 0,
+        .cmd = 0x48,
+        .feedback = 1,
         .paraMSB = 0,
         .paraLSB = 0,
 //        .checksumMSB = 0xFE,
@@ -660,7 +665,7 @@ void specifyVolume(uint8_t vol)
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
 }
 
-void playback(uint16_t trackId)
+void playback(void)
 {
     //0x0D
     dfplayer_instrction inst = {
@@ -668,7 +673,7 @@ void playback(uint16_t trackId)
         .version = 0xff,
         .length = 6,
         .cmd = 0x0D,
-        .feedback = 1,
+        .feedback = 0,
         .paraMSB = 0,
         .paraLSB = 0,
 //        .checksumMSB = 0xFE,
@@ -676,9 +681,6 @@ void playback(uint16_t trackId)
         .endByte = 0xef
     };
     calculateChecksum(&inst);
-
-    specifyTrackId(trackId);
-    vTaskDelay(MS2TICK(100));
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
 }
 
@@ -686,7 +688,7 @@ static void responseParser(uint8_t* resp)
 {
     dfplayer_instrction *inst = (dfplayer_instrction *)resp;
     switch (inst->cmd) {
-    case 0x4B:
+    case 0x48:
         gTotalTracks = inst->paraMSB << 8 | inst->paraLSB;
         LOG_I(app, "total tracks: %d", gTotalTracks);
         break;
@@ -729,7 +731,7 @@ static void DFPlayerTask(void* args)
     vTaskDelay(MS2TICK(1000));
     specifyVolume(30);
     vTaskDelay(MS2TICK(1000));
-    playback(gCurrentTrack++);
+    // playback(gCurrentTrack++);
 
     /*Step3: Loop the data received from the UART input to its output */
     while (1) {
@@ -738,7 +740,7 @@ static void DFPlayerTask(void* args)
             hal_uart_receive_dma(HAL_UART_1, buffer, length);
             // Handle receive data here
             LOG_I(app, "DFPlayer resp: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
-                buffer[0], buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7]);
+                buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7], buffer[8]);
             responseParser(buffer);
 
             g_uart_receive_event = false;

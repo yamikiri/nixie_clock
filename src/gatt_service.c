@@ -368,17 +368,6 @@ const bt_gatts_service_t _bt_if_clock_service = {
     .records = bt_if_clock_service_rec
 };
 
-static const bt_gatts_service_t * _bt_if_gatt_server[] = {
-    //&bt_if_gap_service,//0x0001
-    //&bt_if_gatt_service,//0x0011
-    //&_bt_if_ble_fota_service, //0x0014-0x0017
-    //&bt_if_dogp_service,//0x0020-0x0025
-    &_bt_if_clock_primary_service,
-    &_bt_if_clock_current_time_service,
-    &_bt_if_clock_service,
-    NULL
-    };
-
 static uint32_t ble_clock_wifi_ssid_char_callback (const uint8_t rw, uint16_t handle,
     void *data, uint16_t size, uint16_t offset)
 {
@@ -523,6 +512,118 @@ static uint32_t ble_clock_wifi_updated_char_cccd_callback (const uint8_t rw, uin
             return BT_STATUS_SUCCESS;
     }
 }
+
+/************************************************
+*   Macro
+*************************************************/
+#define DFPLAYER_SERVICE_UUID                  (0x1800)          /* Data Transfer Over Gatt Service UUID. */
+#define DFPLAYER_TOTAL_TRACK_CHAR_UUID         (0x3310)          /* SSID Characteristic UUID. */
+#define DFPLAYER_PLAY_TRACK_CHAR_UUID          (0x3311)          /* PASSWORD Characteristic UUID. */
+
+/************************************************
+*   Global
+*************************************************/
+const bt_uuid_t DFPLAYER_HANDLE_TOTAL_TRACK_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(DFPLAYER_TOTAL_TRACK_CHAR_UUID);
+const bt_uuid_t DFPLAYER_HANDLE_PLAY_TRACK_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(DFPLAYER_PLAY_TRACK_CHAR_UUID);
+
+enum {
+    DFPLAYER_HANDLE_START = 0x0031,
+    DFPLAYER_HANDLE_PRIMARY_SERVICE = DFPLAYER_HANDLE_START,
+    DFPLAYER_HANDLE_TOTAL_TRACK_CHAR_STRING,
+    DFPLAYER_HANDLE_TOTAL_TRACK_CHAR_STRING_VALUE,
+    DFPLAYER_HANDLE_PLAY_TRACK_CHAR_STRING,
+    DFPLAYER_HANDLE_PLAY_TRACK_CHAR_STRING_VALUE,
+    DFPLAYER_HANDLE_END
+};
+
+/************************************************
+*   Utilities
+*************************************************/
+static uint32_t ble_dfplayer_total_track_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+static uint32_t ble_dfplayer_play_track_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+
+BT_GATTS_NEW_PRIMARY_SERVICE_16(bt_if_dfplayer_service, DFPLAYER_SERVICE_UUID);
+
+BT_GATTS_NEW_CHARC_16(bt_if_dfplayer_total_track_char,
+                      BT_GATT_CHARC_PROP_READ, DFPLAYER_HANDLE_TOTAL_TRACK_CHAR_STRING,
+                      DFPLAYER_TOTAL_TRACK_CHAR_UUID);
+
+BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_dfplayer_total_track_char_value, DFPLAYER_HANDLE_TOTAL_TRACK_CHAR_UUID128,
+                    BT_GATTS_REC_PERM_READABLE, ble_dfplayer_total_track_char_callback);
+
+BT_GATTS_NEW_CHARC_16(bt_if_dfplayer_play_track_char,
+                      BT_GATT_CHARC_PROP_WRITE|BT_GATT_CHARC_PROP_READ, DFPLAYER_HANDLE_PLAY_TRACK_CHAR_STRING,
+                      DFPLAYER_PLAY_TRACK_CHAR_UUID);
+
+BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_dfplayer_play_track_char_value, DFPLAYER_HANDLE_PLAY_TRACK_CHAR_UUID128,
+                    BT_GATTS_REC_PERM_WRITABLE|BT_GATTS_REC_PERM_READABLE, ble_dfplayer_play_track_char_callback);
+
+static const bt_gatts_service_rec_t *bt_if_dfplayer_service_rec[] = {
+    (const bt_gatts_service_rec_t *) &bt_if_dfplayer_service,
+    (const bt_gatts_service_rec_t *) &bt_if_dfplayer_total_track_char,
+    (const bt_gatts_service_rec_t *) &bt_if_dfplayer_total_track_char_value,
+    (const bt_gatts_service_rec_t *) &bt_if_dfplayer_play_track_char,
+    (const bt_gatts_service_rec_t *) &bt_if_dfplayer_play_track_char_value
+};
+
+const bt_gatts_service_t _bt_if_dfplayer_service = {
+    .starting_handle = DFPLAYER_HANDLE_START,
+    .ending_handle = DFPLAYER_HANDLE_END - 1,
+    .required_encryption_key_size = 0,
+    .records = bt_if_dfplayer_service_rec
+};
+
+static uint32_t ble_dfplayer_total_track_char_callback (const uint8_t rw, uint16_t handle,
+    void *data, uint16_t size, uint16_t offset)
+{
+    switch (rw) {
+        case BT_GATTS_CALLBACK_READ:
+            /* To handle read request. */
+            queryTotalTracks();
+            if (size == 0) {
+                return sizeof(uint16_t);
+            }
+            *(uint16_t*)data = gTotalTracks;
+            return sizeof(uint16_t);
+        default:
+            return BT_STATUS_SUCCESS;
+    }
+}
+
+static uint32_t ble_dfplayer_play_track_char_callback (const uint8_t rw, uint16_t handle,
+    void *data, uint16_t size, uint16_t offset)
+{
+    uint16_t req = *(uint16_t *)data;
+    switch (rw) {
+        case BT_GATTS_CALLBACK_READ:
+            /* To handle read request. */
+            *(uint16_t*)data = gCurrentTrack;
+            return sizeof(uint16_t);
+        case BT_GATTS_CALLBACK_WRITE:
+            /* To handle write request */
+            // queryTotalTracks();
+            LOG_I(app, "request to play track:%d, total:%d", req, gTotalTracks);
+            if (req >= gTotalTracks) {
+                return BT_STATUS_SUCCESS;
+            }
+            specifyTrackId(req + 1);
+            return sizeof(uint16_t);
+        default:
+            return BT_STATUS_SUCCESS;
+    }
+}
+
+static const bt_gatts_service_t * _bt_if_gatt_server[] = {
+    //&bt_if_gap_service,//0x0001
+    //&bt_if_gatt_service,//0x0011
+    //&_bt_if_ble_fota_service, //0x0014-0x0017
+    //&bt_if_dogp_service,//0x0020-0x0025
+    &_bt_if_clock_primary_service,
+    &_bt_if_clock_current_time_service,
+    &_bt_if_clock_service,
+    &_bt_if_dfplayer_service,
+    NULL
+};
 
 //When GATTS get req from remote client, GATTS will call bt_get_gatt_server() to get application's gatt service DB.
 //You have to return the DB(bt_gatts_service_t pointer) to gatts stack.
