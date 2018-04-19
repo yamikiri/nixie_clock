@@ -117,6 +117,6 @@ extern volatile clock_configurations gConfig;
 extern volatile notification_tasklet gNotiTasklet;
 extern char volatile gTimeStringCache[20];
 extern volatile void* gBLE_BroadcastNotiIndication;
-extern volatile void *gBLE_WifiConnectedNotiIndication;
+extern volatile void* gBLE_WifiConnectedNotiIndication;
 
 #endif

@@ -692,6 +692,11 @@ static void responseParser(uint8_t* resp)
         gTotalTracks = inst->paraMSB << 8 | inst->paraLSB;
         LOG_I(app, "total tracks: %d", gTotalTracks);
         break;
+    case 0x3F:
+        if (inst->paraLSB == 0x02) {
+            queryTotalTracks();
+        }
+        break;
     };
 }
 

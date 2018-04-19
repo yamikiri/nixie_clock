@@ -579,7 +579,7 @@ static uint32_t ble_dfplayer_total_track_char_callback (const uint8_t rw, uint16
     switch (rw) {
         case BT_GATTS_CALLBACK_READ:
             /* To handle read request. */
-            queryTotalTracks();
+            // queryTotalTracks();
             if (size == 0) {
                 return sizeof(uint16_t);
             }
@@ -613,6 +613,151 @@ static uint32_t ble_dfplayer_play_track_char_callback (const uint8_t rw, uint16_
     }
 }
 
+/************************************************
+*   Macro
+*************************************************/
+#define ALARM_SERVICE_UUID                     (0x1811)          /* Data Transfer Over Gatt Service UUID. */
+#define ALARM_QUERY_CHAR_UUID                  (0xa1a1)          /* Query alarm Characteristic UUID. */
+#define ALARM_SET_CHAR_UUID                    (0xa1a0)          /* Set alarm Characteristic UUID. */
+
+/************************************************
+*   Global
+*************************************************/
+const bt_uuid_t ALARM_HANDLE_QUERY_CHAR_UUID128 = BT_UUID_INIT_WITH_UUID16(ALARM_QUERY_CHAR_UUID);
+const bt_uuid_t ALARM_HANDLE_SET_CHAR_UUID128   = BT_UUID_INIT_WITH_UUID16(ALARM_SET_CHAR_UUID);
+
+enum {
+    ALARM_HANDLE_START = 0x0041,
+    ALARM_HANDLE_PRIMARY_SERVICE = ALARM_HANDLE_START,
+    ALARM_HANDLE_QUERY_CHAR_STRING,
+    ALARM_HANDLE_QUERY_CHAR_STRING_VALUE,
+    ALARM_HANDLE_SET_CHAR_STRING,
+    ALARM_HANDLE_SET_CHAR_STRING_VALUE,
+    ALARM_HANDLE_END
+};
+
+/************************************************
+*   Utilities
+*************************************************/
+static uint32_t ble_alarm_query_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+static uint32_t ble_alarm_set_char_callback(const uint8_t rw, uint16_t handle, void *data, uint16_t size, uint16_t offset);
+
+BT_GATTS_NEW_PRIMARY_SERVICE_16(bt_if_alarm_service, ALARM_SERVICE_UUID);
+
+BT_GATTS_NEW_CHARC_16(bt_if_alarm_query_char,
+                      BT_GATT_CHARC_PROP_READ, ALARM_HANDLE_QUERY_CHAR_STRING,
+                      ALARM_QUERY_CHAR_UUID);
+
+BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_alarm_query_char_value, ALARM_HANDLE_QUERY_CHAR_UUID128,
+                    BT_GATTS_REC_PERM_READABLE, ble_alarm_query_char_callback);
+
+BT_GATTS_NEW_CHARC_16(bt_if_alarm_set_char,
+                      BT_GATT_CHARC_PROP_WRITE|BT_GATT_CHARC_PROP_READ, ALARM_HANDLE_SET_CHAR_STRING,
+                      ALARM_SET_CHAR_UUID);
+
+BT_GATTS_NEW_CHARC_VALUE_CALLBACK(bt_if_alarm_set_char_value, ALARM_HANDLE_SET_CHAR_UUID128,
+                    BT_GATTS_REC_PERM_WRITABLE|BT_GATTS_REC_PERM_READABLE, ble_alarm_set_char_callback);
+
+static const bt_gatts_service_rec_t *bt_if_alarm_service_rec[] = {
+    (const bt_gatts_service_rec_t *) &bt_if_alarm_service,
+    (const bt_gatts_service_rec_t *) &bt_if_alarm_query_char,
+    (const bt_gatts_service_rec_t *) &bt_if_alarm_query_char_value,
+    (const bt_gatts_service_rec_t *) &bt_if_alarm_set_char,
+    (const bt_gatts_service_rec_t *) &bt_if_alarm_set_char_value
+};
+
+const bt_gatts_service_t _bt_if_alarm_service = {
+    .starting_handle = ALARM_HANDLE_START,
+    .ending_handle = ALARM_HANDLE_END - 1,
+    .required_encryption_key_size = 0,
+    .records = bt_if_alarm_service_rec
+};
+
+static void encapData(uint8_t *data, uint8_t *size, unsigned long nData)
+{
+    int32_t i;
+    uint8_t temp[sizeof(alarm_config) * MAX_AMOUNT_ALARMS];
+    uint8_t cs;
+    memcpy(temp, data, *size);
+    *data = 0xAA;
+    *(data + 1) = 0x55;
+    *(data + 2) = *size + 1;
+    *(data + 3) = nData;
+    for (i = 0, cs = 0; i < *size; i++) cs += temp[i];
+    cs += *(data + 2);
+    cs += *(data + 3);
+    *(data + *size + 4) = cs;
+    memcpy(data + 4, temp, *size);
+    *size = *size + 5;
+}
+
+static uint32_t ble_alarm_query_char_callback (const uint8_t rw, uint16_t handle,
+    void *data, uint16_t size, uint16_t offset)
+{
+    uint8_t temp[sizeof(alarm_config) * MAX_AMOUNT_ALARMS + 5];
+    uint8_t pkgSze = gConfig.nAlarms * sizeof(alarm_config);
+    int32_t i;
+    switch (rw) {
+        case BT_GATTS_CALLBACK_READ:
+            /* To handle read request. */
+            // queryTotalTracks();
+            if (size == 0 || gConfig.nAlarms == 0) {
+                return sizeof(uint16_t);
+            }
+            for(i = 0; i < gConfig.nAlarms; i++) {
+                memcpy(temp, &(gConfig.alarms[i]), sizeof(alarm_config));
+            }
+            encapData(temp, &pkgSze, gConfig.nAlarms);
+            memcpy(data, temp, pkgSze);
+            return pkgSze;
+        default:
+            return BT_STATUS_SUCCESS;
+    }
+}
+
+static uint8_t decapData(uint8_t *data, alarm_config* out, int8_t* index)
+{
+    return 0;
+}
+
+static uint32_t ble_alarm_set_char_callback (const uint8_t rw, uint16_t handle,
+    void *data, uint16_t size, uint16_t offset)
+{
+    static int8_t currentAlarmIndex = -1;
+    int8_t index;
+    uint8_t pkgSze;
+    uint8_t temp[sizeof(alarm_config) + 5];
+    alarm_config setup;
+    switch (rw) {
+        case BT_GATTS_CALLBACK_READ:
+            /* To handle read request. */
+            if (size == 0 || gConfig.nAlarms == 0) {
+                return sizeof(uint16_t);
+            }
+            if (currentAlarmIndex == -1) {
+                index = 0;
+            }
+            memcpy(temp, &(gConfig.alarms[index]), sizeof(alarm_config));
+            pkgSze = sizeof(alarm_config);
+            encapData(temp, &pkgSze, 1);
+            memcpy(data, temp, pkgSze);
+            return pkgSze;
+        case BT_GATTS_CALLBACK_WRITE:
+            /* To handle write request */
+            if (size == 0) {
+                return sizeof(uint16_t);
+            }
+            if (decapData(data, &setup, &index) != 0) {
+                LOG_I(app, "decap data failed.");
+                return sizeof(uint16_t);
+            }
+            LOG_I(app, "request to setup alarm:%d", index);
+            return BT_STATUS_SUCCESS;
+        default:
+            return BT_STATUS_SUCCESS;
+    }
+}
+
 static const bt_gatts_service_t * _bt_if_gatt_server[] = {
     //&bt_if_gap_service,//0x0001
     //&bt_if_gatt_service,//0x0011
@@ -622,6 +767,7 @@ static const bt_gatts_service_t * _bt_if_gatt_server[] = {
     &_bt_if_clock_current_time_service,
     &_bt_if_clock_service,
     &_bt_if_dfplayer_service,
+    &_bt_if_alarm_service,
     NULL
 };
 
