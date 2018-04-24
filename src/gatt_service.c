@@ -673,20 +673,23 @@ const bt_gatts_service_t _bt_if_alarm_service = {
     .records = bt_if_alarm_service_rec
 };
 
+static uint8_t checksum(uint8_t *data, unsigned long len)
+{
+    uint8_t cs;
+    int32_t i;
+    for (i = 0, cs = 0; i < len; i++) cs += data[i];
+    return cs;
+}
+
 static void encapData(uint8_t *data, uint8_t *size, unsigned long nData)
 {
-    int32_t i;
     uint8_t temp[sizeof(alarm_config) * MAX_AMOUNT_ALARMS];
-    uint8_t cs;
     memcpy(temp, data, *size);
     *data = 0xAA;
     *(data + 1) = 0x55;
     *(data + 2) = *size + 1;
     *(data + 3) = nData;
-    for (i = 0, cs = 0; i < *size; i++) cs += temp[i];
-    cs += *(data + 2);
-    cs += *(data + 3);
-    *(data + *size + 4) = cs;
+    *(data + *size + 4) = checksum(data + 2, nData + 2);
     memcpy(data + 4, temp, *size);
     *size = *size + 5;
 }
@@ -717,6 +720,11 @@ static uint32_t ble_alarm_query_char_callback (const uint8_t rw, uint16_t handle
 
 static uint8_t decapData(uint8_t *data, alarm_config* out, int8_t* index)
 {
+    if (!(data[0] == 0xAA && data[1] == 0x55)) {
+        LOG_I(app, "data header incorrect!");
+        return -1;
+    }
+
     return 0;
 }
 
