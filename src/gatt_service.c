@@ -687,9 +687,9 @@ static void encapData(uint8_t *data, uint8_t *size, unsigned long nData)
     memcpy(temp, data, *size);
     *data = 0xAA;
     *(data + 1) = 0x55;
-    *(data + 2) = *size + 1;
+    *(data + 2) = *size + 2;
     *(data + 3) = nData;
-    *(data + *size + 4) = checksum(data + 2, nData + 2);
+    *(data + *size + 4) = checksum(data + 2, *size + 2 );
     memcpy(data + 4, temp, *size);
     *size = *size + 5;
 }
@@ -724,6 +724,12 @@ static uint8_t decapData(uint8_t *data, alarm_config* out, int8_t* index)
         LOG_I(app, "data header incorrect!");
         return -1;
     }
+    if (checksum(data + 2, sizeof(alarm_config) + 1) != *(data + sizeof(alarm_config) + 3) ) {
+        LOG_I(app, "checksum incorrect!");
+        return -1;
+    }
+    *index = *(data + 2);
+    memcpy(out, data + 3, sizeof(alarm_config));
 
     return 0;
 }
@@ -736,6 +742,7 @@ static uint32_t ble_alarm_set_char_callback (const uint8_t rw, uint16_t handle,
     uint8_t pkgSze;
     uint8_t temp[sizeof(alarm_config) + 5];
     alarm_config setup;
+    nvdm_status_t nvdmStatus;
     switch (rw) {
         case BT_GATTS_CALLBACK_READ:
             /* To handle read request. */
@@ -760,6 +767,15 @@ static uint32_t ble_alarm_set_char_callback (const uint8_t rw, uint16_t handle,
                 return sizeof(uint16_t);
             }
             LOG_I(app, "request to setup alarm:%d", index);
+            memcpy(&(gConfig.alarms[index]), &setup, sizeof(alarm_config));
+            if ((index + 1) > gConfig.nAlarms)
+                gConfig.nAlarms = index + 1;
+            nvdmStatus = nvdm_write_data_item(NVDM_GRP, NVDM_GLOBAL_CONFIG, NVDM_DATA_ITEM_TYPE_RAW_DATA, (uint8_t *)&gConfig, sizeof(gConfig));
+            if (nvdmStatus == NVDM_STATUS_OK) {
+                LOG_I(app, "saved global configurations.");
+            } else {
+                LOG_I(app, "failed to save global configurations.(0x%X)", nvdmStatus);
+            }
             return BT_STATUS_SUCCESS;
         default:
             return BT_STATUS_SUCCESS;

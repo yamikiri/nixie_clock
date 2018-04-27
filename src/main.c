@@ -636,7 +636,7 @@ void queryTotalTracks(void)
         .version = 0xff,
         .length = 6,
         .cmd = 0x48,
-        .feedback = 1,
+        .feedback = 0,
         .paraMSB = 0,
         .paraLSB = 0,
 //        .checksumMSB = 0xFE,
@@ -684,18 +684,66 @@ void playback(void)
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
 }
 
+void DFPlayerReset(void)
+{
+    //0x0D
+    dfplayer_instrction inst = {
+        .startByte = 0x7e,
+        .version = 0xff,
+        .length = 6,
+        .cmd = 0x0C,
+        .feedback = 0,
+        .paraMSB = 0,
+        .paraLSB = 0,
+//        .checksumMSB = 0xFE,
+//        .checksumLSB = 0xEE,
+        .endByte = 0xef
+    };
+    calculateChecksum(&inst);
+    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
+}
+
+void queryOnlineStatus(void)
+{
+    //0x0D
+    dfplayer_instrction inst = {
+        .startByte = 0x7e,
+        .version = 0xff,
+        .length = 6,
+        .cmd = 0x3F,
+        .feedback = 0,
+        .paraMSB = 0,
+        .paraLSB = 0,
+//        .checksumMSB = 0xFE,
+//        .checksumLSB = 0xEE,
+        .endByte = 0xef
+    };
+    calculateChecksum(&inst);
+    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
+}
+
 static void responseParser(uint8_t* resp)
 {
+    static uint8_t a3cnt = 0;
     dfplayer_instrction *inst = (dfplayer_instrction *)resp;
     switch (inst->cmd) {
     case 0x48:
         gTotalTracks = inst->paraMSB << 8 | inst->paraLSB;
         LOG_I(app, "total tracks: %d", gTotalTracks);
         break;
+    case 0x3A:
+        if ((a3cnt++ %2) == 1) {
+            vTaskDelay(MS2TICK(1000));
+            queryOnlineStatus();
+        }
+        break;
     case 0x3F:
         if (inst->paraLSB == 0x02) {
             queryTotalTracks();
         }
+        break;
+    case 0x3B:
+        gTotalTracks = 0;
         break;
     };
 }
@@ -732,6 +780,8 @@ static void DFPlayerTask(void* args)
 
     /* Print the prompt content to the test port */
     // hal_uart_send_dma(HAL_UART_1, (const uint8_t *)UART_PROMPT_INFO, UART_PROMPT_INFO_SIZE);
+    DFPlayerReset();
+    vTaskDelay(MS2TICK(3000));
     specifySD();
     vTaskDelay(MS2TICK(1000));
     specifyVolume(30);

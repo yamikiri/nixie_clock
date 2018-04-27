@@ -23,6 +23,8 @@ void specifyTrackId(uint16_t trackId);
 void specifySD(void);
 void specifyVolume(uint8_t vol);
 void queryTotalTracks(void);
+void DFPlayerReset(void);
+void queryOnlineStatus(void);
 
 extern volatile uint16_t gCurrentTrack;
 extern volatile uint16_t gTotalTracks;
