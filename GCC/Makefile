@@ -131,6 +131,8 @@ APP_FILES += $(APP_PATH_SRC)/bt_hci_log_uart.c
 APP_FILES += $(APP_PATH_SRC)/bt_init.c
 APP_FILES += $(APP_PATH_SRC)/bt_common.c
 APP_FILES += $(APP_PATH_SRC)/gatt_service.c
+APP_FILES += $(APP_PATH_SRC)/dfplayer.c
+APP_FILES += $(APP_PATH_SRC)/alarm.c
 
 ifeq ($(MTK_MINICLI_ENABLE),y)
 APP_FILES += driver/board/linkit7697_hdk/util/src/io_def.c

@@ -61,6 +61,8 @@ static void ip_ready_callback(struct netif *netif);
 static int32_t wifi_station_port_secure_event_handler(wifi_event_t event, uint8_t *payload, uint32_t length);
 static int32_t wifi_station_disconnected_event_handler(wifi_event_t event, uint8_t *payload, uint32_t length);
 
+log_create_module(wifi_lwip, PRINT_LEVEL_INFO);
+
 /**
   * @brief  dhcp got ip will callback this function.
   * @param[in] struct netif *netif: which network interface got ip.
@@ -72,13 +74,13 @@ static void ip_ready_callback(struct netif *netif)
         char ip_addr[17] = {0};
         if (NULL != inet_ntoa(netif->ip_addr)) {
             strcpy(ip_addr, inet_ntoa(netif->ip_addr));
-            LOG_I(app, "************************");
-            LOG_I(app, "DHCP got IP:%s", ip_addr);
-            LOG_I(app, "************************");
+            LOG_I(wifi_lwip, "************************");
+            LOG_I(wifi_lwip, "DHCP got IP:%s", ip_addr);
+            LOG_I(wifi_lwip, "************************");
 
             xSemaphoreGive(ip_ready);
         } else {
-            LOG_E(common, "DHCP got Failed");
+            LOG_E(wifi_lwip, "DHCP got Failed");
         }
 #ifdef MTK_WIFI_REPEATER_ENABLE
         uint8_t op_mode = 0;
@@ -111,7 +113,7 @@ static int32_t wifi_station_port_secure_event_handler(wifi_event_t event,
     netif_set_link_up(sta_if);
 
     xSemaphoreGive(wifi_connected);
-    LOG_I(app, "wifi connected");
+    LOG_I(wifi_lwip, "wifi connected");
     return 0;
 }
 
@@ -146,7 +148,7 @@ static int32_t wifi_station_disconnected_event_handler(wifi_event_t event,
             if (dhcp_config_init() == STA_IP_MODE_DHCP) {
                 netif_set_addr(sta_if, IP4_ADDR_ANY, IP4_ADDR_ANY, IP4_ADDR_ANY);
             }
-            LOG_I(app, "wifi disconnected");
+            LOG_I(wifi_lwip, "wifi disconnected");
         }
     }
     return 1;
@@ -163,7 +165,7 @@ void lwip_network_init(uint8_t opmode)
     lwip_tcpip_config_t tcpip_config = {0, {0}, {0}, {0}, {0}, {0}, {0}};
 
     if (0 != tcpip_config_init(&tcpip_config)) {
-        LOG_E(app, "tcpip config init fail");
+        LOG_E(wifi_lwip, "tcpip config init fail");
         return;
     }
     wifi_connected = xSemaphoreCreateBinary();
@@ -200,7 +202,7 @@ void lwip_net_start(uint8_t opmode)
             lwip_tcpip_config_t tcpip_config = {0, {0}, {0}, {0}, {0}, {0}, {0}};
 
             if (0 != tcpip_config_init(&tcpip_config)) {
-                LOG_E(app, "tcpip config init fail");
+                LOG_E(wifi_lwip, "tcpip config init fail");
                 return;
             }
 
@@ -267,7 +269,7 @@ uint8_t wifi_set_opmode(uint8_t target_mode)
     }
 
     if (target_mode == origin_op_mode) {
-        LOG_I(wifi, "same opmode %d, do nothing", target_mode);
+        LOG_I(wifi_lwip, "same opmode %d, do nothing", target_mode);
         return 0;
     }
     lwip_net_stop(origin_op_mode);
@@ -275,7 +277,7 @@ uint8_t wifi_set_opmode(uint8_t target_mode)
     if (wifi_config_set_opmode(target_mode) < 0) {
         return 1;
     }
-    LOG_I(wifi, "set opmode to [%d]", target_mode);
+    LOG_I(wifi_lwip, "set opmode to [%d]", target_mode);
 
     lwip_net_start(target_mode);
     return 0;

@@ -119,4 +119,6 @@ extern char volatile gTimeStringCache[20];
 extern volatile void* gBLE_BroadcastNotiIndication;
 extern volatile void* gBLE_WifiConnectedNotiIndication;
 
+void send_DFPlayerCmd(uint8_t *cmd, int32_t cmdLen);
+
 #endif

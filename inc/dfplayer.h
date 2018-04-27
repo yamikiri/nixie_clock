@@ -26,6 +26,8 @@ void queryTotalTracks(void);
 void DFPlayerReset(void);
 void queryOnlineStatus(void);
 
+void responseParser(uint8_t* resp);
+
 extern volatile uint16_t gCurrentTrack;
 extern volatile uint16_t gTotalTracks;
 

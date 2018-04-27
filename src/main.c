@@ -80,7 +80,7 @@ volatile uint16_t gTotalTracks;
  * User needs to define their own log control blocks as project needs.
  * Please refer to the log dev guide under /doc folder for more details.
  */
-log_create_module(app, PRINT_LEVEL_INFO);
+log_create_module(main, PRINT_LEVEL_INFO);
 
 /* ---------------------------------------------------------------------------- */
 static void app_btnotify_init(void);
@@ -145,36 +145,36 @@ extern bt_bd_addr_t local_public_addr;
 // called by bt_app_event_callback@bt_common.c
 bt_status_t app_bt_event_callback(bt_msg_type_t msg, bt_status_t status, void *buff)
 {
-    LOG_I(app, "---> bt_event_callback(0x%08X,%d)", msg, status);
+    LOG_I(main, "---> bt_event_callback(0x%08X,%d)", msg, status);
 
     switch(msg)
     {
     case BT_POWER_ON_CNF:
-        LOG_I(app, "[BT_POWER_ON_CNF](%d)", status);
+        LOG_I(main, "[BT_POWER_ON_CNF](%d)", status);
 
         // set random address before advertising
-        LOG_I(app, "bt_gap_le_set_random_address()");    
+        LOG_I(main, "bt_gap_le_set_random_address()");    
         bt_gap_le_set_random_address((bt_bd_addr_ptr_t)local_public_addr);
 
         app_btnotify_init();
         break;
 
     case BT_GAP_LE_SET_RANDOM_ADDRESS_CNF: 
-        LOG_I(app, "[BT_GAP_LE_SET_RANDOM_ADDRESS_CNF](%d)", status);
+        LOG_I(main, "[BT_GAP_LE_SET_RANDOM_ADDRESS_CNF](%d)", status);
 
         // start advertising
         app_start_advertising();
         break;
 
     case BT_GAP_LE_SET_ADVERTISING_CNF:
-        LOG_I(app, "[BT_GAP_LE_SET_ADVERTISING_CNF](%d)", status);
+        LOG_I(main, "[BT_GAP_LE_SET_ADVERTISING_CNF](%d)", status);
         break;
 
     case BT_GAP_LE_DISCONNECT_IND:
-        LOG_I(app, "[BT_GAP_LE_DISCONNECT_IND](%d)", status);
-        LOG_I(app, "************************");
-        LOG_I(app, "BLE disconnected!!");
-        LOG_I(app, "************************");
+        LOG_I(main, "[BT_GAP_LE_DISCONNECT_IND](%d)", status);
+        LOG_I(main, "************************");
+        LOG_I(main, "BLE disconnected!!");
+        LOG_I(main, "************************");
         gNotiTasklet.connected = 0;
         gNotiTasklet.conn_handle = 0xFFFF;
         memset(&gNotiTasklet.enables, 0x0, sizeof(task_enables));
@@ -184,21 +184,21 @@ bt_status_t app_bt_event_callback(bt_msg_type_t msg, bt_status_t status, void *b
         break;
 
     case BT_GAP_LE_CONNECT_IND:
-        LOG_I(app, "[BT_GAP_LE_CONNECT_IND](%d)", status);
+        LOG_I(main, "[BT_GAP_LE_CONNECT_IND](%d)", status);
 
         bt_gap_le_connection_ind_t *connection_ind = (bt_gap_le_connection_ind_t *)buff;
-        LOG_I(app, "-> connection handle = 0x%04x, role = %s", connection_ind->connection_handle, (connection_ind->role == BT_ROLE_MASTER)? "master" : "slave");
+        LOG_I(main, "-> connection handle = 0x%04x, role = %s", connection_ind->connection_handle, (connection_ind->role == BT_ROLE_MASTER)? "master" : "slave");
 
-        LOG_I(app, "************************");
-        LOG_I(app, "BLE connected!!");
-        LOG_I(app, "************************");
+        LOG_I(main, "************************");
+        LOG_I(main, "BLE connected!!");
+        LOG_I(main, "************************");
         app_stop_advertising();
         gNotiTasklet.connected = 1;
         gNotiTasklet.conn_handle = connection_ind->connection_handle;
         break;
     }
 
-    LOG_I(app, "<--- bt_event_callback(0x%08X,%d)", msg, status);
+    LOG_I(main, "<--- bt_event_callback(0x%08X,%d)", msg, status);
     return BT_STATUS_SUCCESS;
 }
 
@@ -214,32 +214,32 @@ static void app_btnotify_msg_hdlr(void *data)
 {
     bt_notify_callback_data_t *p_data = (bt_notify_callback_data_t *)data;
 
-    LOG_I(app, "> app_btnotify_msg_hdlr(evt_id=%d)", p_data->evt_id);
+    LOG_I(main, "> app_btnotify_msg_hdlr(evt_id=%d)", p_data->evt_id);
 
     switch (p_data->evt_id) 
     {
     case BT_NOTIFY_EVENT_CONNECTION:
-        LOG_I(app, "  >BT_NOTIFY_EVENT_CONNECTION");
+        LOG_I(main, "  >BT_NOTIFY_EVENT_CONNECTION");
         memcpy(g_remote_bt_addr, p_data->bt_addr, 6);
         break;
 
     case BT_NOTIFY_EVENT_DISCONNECTION:
-        LOG_I(app, "  >BT_NOTIFY_EVENT_DISCONNECTION");
+        LOG_I(main, "  >BT_NOTIFY_EVENT_DISCONNECTION");
         memset(g_remote_bt_addr, 0, 6);
         break;
 
     case BT_NOTIFY_EVENT_SEND_IND:
         /*send  new/the rest data flow start*/
-        LOG_I(app, "  >BT_NOTIFY_EVENT_SEND_IND");
+        LOG_I(main, "  >BT_NOTIFY_EVENT_SEND_IND");
         break;
 
     case BT_NOTIFY_EVENT_DATA_RECEIVED:
         /*receive data*/
-        LOG_I(app, "  >BT_NOTIFY_EVENT_DATA_RECEIVED(code=%d,len=%d)", p_data->event_data.error_code, p_data->event_data.length);
+        LOG_I(main, "  >BT_NOTIFY_EVENT_DATA_RECEIVED(code=%d,len=%d)", p_data->event_data.error_code, p_data->event_data.length);
         if (strcmp(p_data->event_data.sender_id, SERIAL_EXTCMD_UPDATE_BIN_SENDER) ||
             strcmp(p_data->event_data.receiver_id, SERIAL_EXTCMD_UPDATE_BIN_RECEIVER))
         {
-            LOG_E(app, "sender (%s) or receiver (%s) error", p_data->event_data.sender_id, p_data->event_data.receiver_id);
+            LOG_E(main, "sender (%s) or receiver (%s) error", p_data->event_data.sender_id, p_data->event_data.receiver_id);
             break;
         }
 
@@ -250,7 +250,7 @@ static void app_btnotify_msg_hdlr(void *data)
         memcpy(buf, p_data->event_data.data, len);
         buf[len] = 0;
 
-        LOG_I(app, "Receive data(%s)", buf);
+        LOG_I(main, "Receive data(%s)", buf);
 
         // reverse content
         int32_t i,j;
@@ -273,15 +273,15 @@ static void app_btnotify_msg_hdlr(void *data)
 
         int32_t written = bt_notify_send_data(&g_remote_bt_addr, fullcmd, strlen(fullcmd), true);
         if (written != strlen(fullcmd)) {
-            LOG_E(app, "Send data unfinished, plan to write(%d), actual written(%d)", strlen(fullcmd), written);
+            LOG_E(main, "Send data unfinished, plan to write(%d), actual written(%d)", strlen(fullcmd), written);
         }
         break;
     default:
-        LOG_I(app, "evt=%d, not handled.", p_data->evt_id);
+        LOG_I(main, "evt=%d, not handled.", p_data->evt_id);
         break;
     }
 
-    LOG_I(app, "< app_btnotify_msg_hdlr(evt_id=%d)", p_data->evt_id);
+    LOG_I(main, "< app_btnotify_msg_hdlr(evt_id=%d)", p_data->evt_id);
 }
 
 static void app_btnotify_init(void)
@@ -375,21 +375,21 @@ static void pcf8574_write(uint8_t high, uint8_t low)
 
     i2c_init.frequency = input_frequency;
     /*if (HAL_I2C_STATUS_OK != hal_i2c_master_init(i2c_port, &i2c_init)) {
-        LOG_E(app, "I2C initialize1 failed");
+        LOG_E(main, "I2C initialize1 failed");
         return;
     }*/
     hal_i2c_master_init(i2c_port, &i2c_init);
     /* Register callback function */
     /*if (HAL_I2C_STATUS_OK != hal_i2c_master_register_callback(i2c_port, i2c_callback, NULL)) {
-        LOG_E(app, "I2C register1 callback failed");
+        LOG_E(main, "I2C register1 callback failed");
         return;
     }
     if (HAL_I2C_STATUS_OK != hal_i2c_master_send_dma(i2c_port, HIGH_PART_ADDR, &high, 1)) {
-        LOG_E(app, "I2C send1 failed");
+        LOG_E(main, "I2C send1 failed");
         return;
     }
     if (HAL_I2C_STATUS_OK != hal_i2c_master_send_dma(i2c_port, LOW_PART_ADDR, &low, 1)) {
-        LOG_E(app, "I2C send2 failed");
+        LOG_E(main, "I2C send2 failed");
         return;
     }*/
 
@@ -404,7 +404,7 @@ static void pcf8574_write(uint8_t high, uint8_t low)
     /*while (0 == i2c_finish_flag);
     i2c_finish_flag = 0;
     if (HAL_I2C_STATUS_OK != hal_i2c_master_deinit(i2c_port)) {
-        LOG_E(app, "I2C deinitialize1 failed");
+        LOG_E(main, "I2C deinitialize1 failed");
         return;
     }*/
     hal_i2c_master_deinit(i2c_port);
@@ -501,7 +501,8 @@ static void _sntp_check_loop(void)
                         r_time.rtc_year+CURR_CENTURY, r_time.rtc_mon, r_time.rtc_day, r_time.rtc_hour, \
                         r_time.rtc_min, r_time.rtc_sec);
             if (last_min != r_time.rtc_min) {
-                LOG_I(app, "%s", gTimeStringCache);
+                LOG_I(main, "%s", gTimeStringCache);
+                checkAlarm(&r_time);
                 last_min = r_time.rtc_min;
             }
             set7seg(r_time.rtc_hour, r_time.rtc_min);
@@ -517,7 +518,7 @@ static void main_task(void *args)
     sntp_setservername(0, NTP_SERVER1);
     sntp_setservername(1, NTP_SERVER2);
     sntp_init();
-    LOG_I(app, "SNTP inited");
+    LOG_I(main, "SNTP inited");
 
     vTaskDelay(MS2TICK(1000));
     _sntp_check_loop();
@@ -575,177 +576,11 @@ static void uart_read_from_input(hal_uart_callback_event_t event, void *user_dat
     }
 }
 
-static void send_DFPlayerCmd(uint8_t *cmd, int32_t cmdLen)
+void send_DFPlayerCmd(uint8_t *cmd, int32_t cmdLen)
 {
-    LOG_I(app, "DFPlayer send: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
+    LOG_I(main, "DFPlayer send: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
                 cmd[1], cmd[2], cmd[3], cmd[4], cmd[5], cmd[6], cmd[7], cmd[8]);
     hal_uart_send_dma(HAL_UART_1, cmd, cmdLen);
-}
-
-void calculateChecksum(dfplayer_instrction *inst)
-{
-    uint16_t sum = inst->version + inst->length + inst->cmd + inst->feedback + inst->paraMSB + inst->paraLSB;
-    sum = 0 - sum;
-    inst->checksumMSB = (uint8_t)(((uint16_t)sum & 0xFF00) >> 8);
-    inst->checksumLSB = (uint8_t)((uint16_t)sum & 0x00FF);
-}
-
-void specifySD(void)
-{
-    dfplayer_instrction inst = {
-        .startByte = 0x7e,
-        .version = 0xff,
-        .length = 6,
-        .cmd = 0x09,
-        .feedback = 0,
-        .paraMSB = 0,
-        .paraLSB = 2,
-//        .checksumMSB = 0xFE,
-//        .checksumLSB = 0xF0,
-        .endByte = 0xef
-    };
-    calculateChecksum(&inst);
-    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
-}
-
-void specifyTrackId(uint16_t trackId)
-{
-    dfplayer_instrction inst = {
-        .startByte = 0x7e,
-        .version = 0xff,
-        .length = 6,
-        .cmd = 0x03,
-        .feedback = 0,
-        .paraMSB = 0,
-        .paraLSB = 0,
-//        .checksumMSB = 0xFE,
-//        .checksumLSB = 0xF0,
-        .endByte = 0xef
-    };
-    inst.paraMSB = (trackId & 0xFF00) >> 8;
-    inst.paraLSB = trackId & 0xFF;
-    calculateChecksum(&inst);
-    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
-    gCurrentTrack = trackId;
-}
-
-void queryTotalTracks(void)
-{
-    dfplayer_instrction inst = {
-        .startByte = 0x7e,
-        .version = 0xff,
-        .length = 6,
-        .cmd = 0x48,
-        .feedback = 0,
-        .paraMSB = 0,
-        .paraLSB = 0,
-//        .checksumMSB = 0xFE,
-//        .checksumLSB = 0xF0,
-        .endByte = 0xef
-    };
-    calculateChecksum(&inst);
-    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
-}
-
-void specifyVolume(uint8_t vol)
-{
-    dfplayer_instrction inst = {
-        .startByte = 0x7e,
-        .version = 0xff,
-        .length = 6,
-        .cmd = 0x06,
-        .feedback = 0,
-        .paraMSB = 0,
-        .paraLSB = vol,
-//        .checksumMSB = 0xFE,
-//        .checksumLSB = 0xF0,
-        .endByte = 0xef
-    };
-    calculateChecksum(&inst);
-    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
-}
-
-void playback(void)
-{
-    //0x0D
-    dfplayer_instrction inst = {
-        .startByte = 0x7e,
-        .version = 0xff,
-        .length = 6,
-        .cmd = 0x0D,
-        .feedback = 0,
-        .paraMSB = 0,
-        .paraLSB = 0,
-//        .checksumMSB = 0xFE,
-//        .checksumLSB = 0xEE,
-        .endByte = 0xef
-    };
-    calculateChecksum(&inst);
-    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
-}
-
-void DFPlayerReset(void)
-{
-    //0x0D
-    dfplayer_instrction inst = {
-        .startByte = 0x7e,
-        .version = 0xff,
-        .length = 6,
-        .cmd = 0x0C,
-        .feedback = 0,
-        .paraMSB = 0,
-        .paraLSB = 0,
-//        .checksumMSB = 0xFE,
-//        .checksumLSB = 0xEE,
-        .endByte = 0xef
-    };
-    calculateChecksum(&inst);
-    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
-}
-
-void queryOnlineStatus(void)
-{
-    //0x0D
-    dfplayer_instrction inst = {
-        .startByte = 0x7e,
-        .version = 0xff,
-        .length = 6,
-        .cmd = 0x3F,
-        .feedback = 0,
-        .paraMSB = 0,
-        .paraLSB = 0,
-//        .checksumMSB = 0xFE,
-//        .checksumLSB = 0xEE,
-        .endByte = 0xef
-    };
-    calculateChecksum(&inst);
-    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
-}
-
-static void responseParser(uint8_t* resp)
-{
-    static uint8_t a3cnt = 0;
-    dfplayer_instrction *inst = (dfplayer_instrction *)resp;
-    switch (inst->cmd) {
-    case 0x48:
-        gTotalTracks = inst->paraMSB << 8 | inst->paraLSB;
-        LOG_I(app, "total tracks: %d", gTotalTracks);
-        break;
-    case 0x3A:
-        if ((a3cnt++ %2) == 1) {
-            vTaskDelay(MS2TICK(1000));
-            queryOnlineStatus();
-        }
-        break;
-    case 0x3F:
-        if (inst->paraLSB == 0x02) {
-            queryTotalTracks();
-        }
-        break;
-    case 0x3B:
-        gTotalTracks = 0;
-        break;
-    };
 }
 
 /**
@@ -794,7 +629,7 @@ static void DFPlayerTask(void* args)
             length = hal_uart_get_available_receive_bytes(HAL_UART_1);
             hal_uart_receive_dma(HAL_UART_1, buffer, length);
             // Handle receive data here
-            LOG_I(app, "DFPlayer resp: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
+            LOG_I(main, "DFPlayer resp: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X",
                 buffer[1], buffer[2], buffer[3], buffer[4], buffer[5], buffer[6], buffer[7], buffer[8]);
             responseParser(buffer);
 
@@ -814,14 +649,14 @@ static void initializeGlobalConfiguration(clock_configurations *config)
     memcpy(config->pwd, NVDM_DEFAULT_PWD, strlen(NVDM_DEFAULT_PWD));
     config->nixieFix = NIXIE_PCB_FIX;
     config->nAlarms = 0;
-    LOG_I(app, "initialized global configurations.");
+    LOG_I(main, "initialized global configurations.");
 }
 
 static void printAlarms(void)
 {
     int i = 0;
     for (i = 0; i < gConfig.nAlarms;i++) {
-        LOG_I(app, "AlarmEnable = %s\n"
+        LOG_I(main, "AlarmEnable = %s\n"
                    "AlarmType = %s\n"
                    "AlarmSchedule = %d %d %d %d %d %d %d\n"
                    "Alarm = %02d:%02d\n",
@@ -836,7 +671,7 @@ static void printAlarms(void)
 
 static void dumpGlobalConfig(void)
 {
-    LOG_I(app, "magic = 0x%02X 0x%02X,\n"
+    LOG_I(main, "magic = 0x%02X 0x%02X,\n"
                "version = %d\n"
                "length = %d\n"
                "Time Zone = %d\n"
@@ -871,7 +706,7 @@ void bt_notification_task(void* args)
                 req = (bt_gattc_prepare_write_charc_req_t *)gBLE_BroadcastNotiIndication;
                 ret = bt_gattc_prepare_write_charc(gNotiTasklet.conn_handle, gNotiTasklet.connected, 
                     1, req);
-                LOG_I(app, "send notification, handle:0x%X, attr_val_len:%d, opcode:0x%02X, " \
+                LOG_I(main, "send notification, handle:0x%X, attr_val_len:%d, opcode:0x%02X, " \
                     "attr_handle:0x%02X, attr_val_offset:%d, attr_value:%s, ret:%X", \
                     gNotiTasklet.conn_handle, req->attribute_value_length, req->att_req->opcode, \
                     req->att_req->attribute_handle, req->att_req->value_offset, \
@@ -882,7 +717,7 @@ void bt_notification_task(void* args)
                 wifi_req = (bt_gattc_write_charc_req_t *)gBLE_WifiConnectedNotiIndication;
                 wifi_connection_get_link_status(&(wifi_req->att_req->attribute_value[0]));
                 ret = bt_gattc_write_charc(gNotiTasklet.conn_handle, wifi_req);
-                LOG_I(app, "send notification, handle:0x%X, attr_val_len:%d, opcode:0x%02X, " \
+                LOG_I(main, "send notification, handle:0x%X, attr_val_len:%d, opcode:0x%02X, " \
                     "attr_handle:0x%02X, attr_value:%u, ret:%X", \
                     gNotiTasklet.conn_handle, wifi_req->attribute_value_length, wifi_req->att_req->opcode, \
                     wifi_req->att_req->attribute_handle, wifi_req->att_req->attribute_value[0], ret);
@@ -929,19 +764,19 @@ int main(void)
         uint32_t toRead = sizeof(gConfig);
         nvdmStatus = nvdm_read_data_item(NVDM_GRP, NVDM_GLOBAL_CONFIG, (uint8_t *)&gConfig, &toRead);
         if (nvdmStatus != NVDM_STATUS_OK) {
-            LOG_I(app, "global configurations not exist!");
+            LOG_I(main, "global configurations not exist!");
             initializeGlobalConfiguration(&gConfig);
             if (nvdmStatus == NVDM_STATUS_ITEM_NOT_FOUND || nvdmStatus == NVDM_STATUS_INCORRECT_CHECKSUM) {
                 dirtyflag = 1;
             }
         } else {
-            LOG_I(app, "global configuration loaded.");
+            LOG_I(main, "global configuration loaded.");
             if (gConfig.magic[0] != 0xAA || gConfig.magic[1] != 0x55) {
-                LOG_E(app, "magic incorrect!");
+                LOG_E(main, "magic incorrect!");
                 initializeGlobalConfiguration(&gConfig);
                 dirtyflag = 1;
             } else if (gConfig.version != CLOCK_CONFIG_VERSION) {
-                LOG_E(app, "config version mismatch!");
+                LOG_E(main, "config version mismatch!");
                 initializeGlobalConfiguration(&gConfig);
                 dirtyflag = 1;
             } else {
@@ -952,16 +787,16 @@ int main(void)
         if (dirtyflag) {
             nvdmStatus = nvdm_write_data_item(NVDM_GRP, NVDM_GLOBAL_CONFIG, NVDM_DATA_ITEM_TYPE_RAW_DATA, (uint8_t *)&gConfig, sizeof(gConfig));
             if (nvdmStatus == NVDM_STATUS_OK) {
-                LOG_I(app, "saved global configurations.");
+                LOG_I(main, "saved global configurations.");
             } else {
-                LOG_I(app, "failed to save global configurations.(0x%X)", nvdmStatus);
+                LOG_I(main, "failed to save global configurations.(0x%X)", nvdmStatus);
             }
         }
     //} else {
-    //    LOG_E(app, "initialize NVDM failed(0x%X)!", nvdmStatus);
+    //    LOG_E(main, "initialize NVDM failed(0x%X)!", nvdmStatus);
     //}
 
-    LOG_I(app, "start to create task.\n");
+    LOG_I(main, "start to create task.\n");
 
     /* User initial the parameters for wifi initial process,  system will determin which wifi operation mode
      * will be started , and adopt which settings for the specific mode while wifi initial process is running*/

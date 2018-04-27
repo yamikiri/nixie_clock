@@ -45,11 +45,14 @@
 #include "FreeRTOS.h"
 #include "nvdm.h"
 #include "sntp.h"
+#include "hal_rtc.h"
 #include "dfplayer.h"
 
 volatile notification_tasklet gNotiTasklet;
 volatile void *gBLE_BroadcastNotiIndication;
 volatile void *gBLE_WifiConnectedNotiIndication;
+
+log_create_module(gatts, PRINT_LEVEL_INFO);
 
 //Declare every record here
 //service collects all bt_gatts_service_rec_t
@@ -221,7 +224,7 @@ static uint32_t ble_clock_current_time_broadcast_char_callback (const uint8_t rw
 {
     uint32_t str_size = strlen(gTimeStringCache);
     uint32_t copy_size;
-    LOG_I(app, "ble_clock_current_time_broadcast_char_callback:%s",
+    LOG_I(gatts, "ble_clock_current_time_broadcast_char_callback:%s",
                 rw?"BT_GATTS_CALLBACK_WRITE":"BT_GATTS_CALLBACK_READ");
     switch (rw) {
         case BT_GATTS_CALLBACK_READ:
@@ -244,7 +247,7 @@ static uint32_t ble_clock_current_time_broadcast_char_cccd_callback (const uint8
     void *data, uint16_t size, uint16_t offset)
 {
     unsigned char en = 0;
-    LOG_I(app, "ble_clock_current_time_broadcast_char_cccd_callback:%s, size: %d, data[0]=%u",
+    LOG_I(gatts, "ble_clock_current_time_broadcast_char_cccd_callback:%s, size: %d, data[0]=%u",
                 rw?"BT_GATTS_CALLBACK_WRITE":"BT_GATTS_CALLBACK_READ", size, *(unsigned char *)data);
     switch (rw) {
         case BT_GATTS_CALLBACK_WRITE:
@@ -456,19 +459,19 @@ static uint32_t ble_clock_wifi_updated_char_callback (const uint8_t rw, uint16_t
     uint32_t pwd_len = strlen(gConfig.pwd);
     uint8_t wifi_status;
     if (rw == BT_GATTS_CALLBACK_WRITE && ssid_len > 0 && pwd_len > 0) {
-        LOG_I(app, "now reload wifi settings");
+        LOG_I(gatts, "now reload wifi settings");
         wifi_config_reload_setting();
         vTaskDelay(MS2TICK(10));
-        LOG_I(app, "now stop lwip");
+        LOG_I(gatts, "now stop lwip");
         lwip_net_stop(WIFI_MODE_STA_ONLY);
         vTaskDelay(MS2TICK(10));
-        LOG_I(app, "now start lwip");
+        LOG_I(gatts, "now start lwip");
         lwip_net_start(WIFI_MODE_STA_ONLY);
         nvdmStatus = nvdm_write_data_item(NVDM_GRP, NVDM_GLOBAL_CONFIG, NVDM_DATA_ITEM_TYPE_RAW_DATA, (uint8_t *)&gConfig, sizeof(gConfig));
         if (nvdmStatus == NVDM_STATUS_OK) {
-            LOG_I(app, "saved global configurations.");
+            LOG_I(gatts, "saved global configurations.");
         } else {
-            LOG_I(app, "failed to save global configurations.(0x%X)", nvdmStatus);
+            LOG_I(gatts, "failed to save global configurations.(0x%X)", nvdmStatus);
         }
         sntp_init();
         return BT_STATUS_SUCCESS;
@@ -485,7 +488,7 @@ static uint32_t ble_clock_wifi_updated_char_cccd_callback (const uint8_t rw, uin
     void *data, uint16_t size, uint16_t offset)
 {
     unsigned char en = 0;
-    LOG_I(app, "ble_clock_wifi_updated_char_cccd_callback:%s, size: %d, data[0]=%u",
+    LOG_I(gatts, "ble_clock_wifi_updated_char_cccd_callback:%s, size: %d, data[0]=%u",
                 rw?"BT_GATTS_CALLBACK_WRITE":"BT_GATTS_CALLBACK_READ", size, *(unsigned char *)data);
     switch (rw) {
         case BT_GATTS_CALLBACK_WRITE:
@@ -602,7 +605,7 @@ static uint32_t ble_dfplayer_play_track_char_callback (const uint8_t rw, uint16_
         case BT_GATTS_CALLBACK_WRITE:
             /* To handle write request */
             // queryTotalTracks();
-            LOG_I(app, "request to play track:%d, total:%d", req, gTotalTracks);
+            LOG_I(gatts, "request to play track:%d, total:%d", req, gTotalTracks);
             if (req >= gTotalTracks) {
                 return BT_STATUS_SUCCESS;
             }
@@ -721,11 +724,11 @@ static uint32_t ble_alarm_query_char_callback (const uint8_t rw, uint16_t handle
 static uint8_t decapData(uint8_t *data, alarm_config* out, int8_t* index)
 {
     if (!(data[0] == 0xAA && data[1] == 0x55)) {
-        LOG_I(app, "data header incorrect!");
+        LOG_I(gatts, "data header incorrect!");
         return -1;
     }
     if (checksum(data + 2, sizeof(alarm_config) + 1) != *(data + sizeof(alarm_config) + 3) ) {
-        LOG_I(app, "checksum incorrect!");
+        LOG_I(gatts, "checksum incorrect!");
         return -1;
     }
     *index = *(data + 2);
@@ -763,18 +766,18 @@ static uint32_t ble_alarm_set_char_callback (const uint8_t rw, uint16_t handle,
                 return sizeof(uint16_t);
             }
             if (decapData(data, &setup, &index) != 0) {
-                LOG_I(app, "decap data failed.");
+                LOG_I(gatts, "decap data failed.");
                 return sizeof(uint16_t);
             }
-            LOG_I(app, "request to setup alarm:%d", index);
+            LOG_I(gatts, "request to setup alarm:%d", index);
             memcpy(&(gConfig.alarms[index]), &setup, sizeof(alarm_config));
             if ((index + 1) > gConfig.nAlarms)
                 gConfig.nAlarms = index + 1;
             nvdmStatus = nvdm_write_data_item(NVDM_GRP, NVDM_GLOBAL_CONFIG, NVDM_DATA_ITEM_TYPE_RAW_DATA, (uint8_t *)&gConfig, sizeof(gConfig));
             if (nvdmStatus == NVDM_STATUS_OK) {
-                LOG_I(app, "saved global configurations.");
+                LOG_I(gatts, "saved global configurations.");
             } else {
-                LOG_I(app, "failed to save global configurations.(0x%X)", nvdmStatus);
+                LOG_I(gatts, "failed to save global configurations.(0x%X)", nvdmStatus);
             }
             return BT_STATUS_SUCCESS;
         default:
