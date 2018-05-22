@@ -36,12 +36,23 @@
 
 #include <time.h>
 #include <stdint.h>
+#include <hal.h>
 #define NTP_SERVER1 "time.stdtime.gov.tw"
 #define NTP_SERVER2 "clock.stdtime.gov.tw"
 #define TIMEZONE_OFFSET     8
 #define CURR_CENTURY 2000
 #define US2TICK(us) (us/(1000*portTICK_RATE_MS))
 #define MS2TICK(ms) (ms/(portTICK_RATE_MS))
+#define DFPLAYER_UART_RX (HAL_GPIO_36)
+#define DFPLAYER_UART_TX (HAL_GPIO_37)
+#define IO_EXP_I2C_CLK  (HAL_GPIO_27)
+#define IO_EXP_I2C_DATA (HAL_GPIO_28)
+#define SEC_LED_PIN (HAL_GPIO_32)
+#define NIXIE_POWER_SWITCH_PIN (HAL_GPIO_29)
+#define BACKLIGHT_LED_PIN (HAL_GPIO_31)
+#define INDICATE_LED_PIN (HAL_GPIO_30)
+#define TOUCH_BTN_POWER_SWITCH_PIN (HAL_GPIO_0)
+#define TOUCH_BTN_INPUT_PIN (HAL_GPIO_39)
 
 /* max supported connection number */
 #define BT_CONNECTION_MAX   16
@@ -119,6 +130,7 @@ extern char volatile gTimeStringCache[20];
 extern volatile void* gBLE_BroadcastNotiIndication;
 extern volatile void* gBLE_WifiConnectedNotiIndication;
 extern volatile uint8_t gTouched;
+extern volatile uint8_t gDisplaySleepMode;
 
 void send_DFPlayerCmd(uint8_t *cmd, int32_t cmdLen);
 

@@ -449,35 +449,35 @@ static void set7seg(uint8_t h, uint8_t m)
         tmp = tmp >> 1;
     }
     if (r[0]) {
-        hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_HIGH);
+        hal_gpio_set_output(SEC_LED_PIN, HAL_GPIO_DATA_HIGH);
     } else {
-        hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_LOW);
+        hal_gpio_set_output(SEC_LED_PIN, HAL_GPIO_DATA_LOW);
     }
 
     if (r[1]) {
-        hal_gpio_set_output(HAL_GPIO_29, HAL_GPIO_DATA_HIGH);
+        hal_gpio_set_output(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_DATA_HIGH);
     } else {
-        hal_gpio_set_output(HAL_GPIO_29, HAL_GPIO_DATA_LOW);
+        hal_gpio_set_output(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_DATA_LOW);
     }
 
     if (r[2]) {
-        hal_gpio_set_output(HAL_GPIO_30, HAL_GPIO_DATA_HIGH);
+        hal_gpio_set_output(BACKLIGHT_LED_PIN, HAL_GPIO_DATA_HIGH);
     } else {
-        hal_gpio_set_output(HAL_GPIO_30, HAL_GPIO_DATA_LOW);
+        hal_gpio_set_output(BACKLIGHT_LED_PIN, HAL_GPIO_DATA_LOW);
     }
 
     if (r[3]) {
-        hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_HIGH);
+        hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_HIGH);
     } else {
-        hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
+        hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_LOW);
     }
 #else
     static uint8_t sec = 0;
     static uint8_t min = 255;
     if ((sec++%2) == 0) {
-        hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_HIGH);
+        hal_gpio_set_output(SEC_LED_PIN, HAL_GPIO_DATA_HIGH);
     } else {
-        hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_LOW);
+        hal_gpio_set_output(SEC_LED_PIN, HAL_GPIO_DATA_LOW);
     }
     if (min != m) {
         pcf8574_write(h, m);
@@ -485,10 +485,11 @@ static void set7seg(uint8_t h, uint8_t m)
     }
 #endif
 }
-
+volatile uint8_t gDisplaySleepMode;
 static void _sntp_check_loop(void)
 {
     static uint8_t last_min = 255;
+    static uint8_t last_displayMode = 1;
     hal_rtc_time_t r_time;
     hal_rtc_status_t ret;
 
@@ -505,7 +506,18 @@ static void _sntp_check_loop(void)
                 checkAlarm(&r_time);
                 last_min = r_time.rtc_min;
             }
-            set7seg(r_time.rtc_hour, r_time.rtc_min);
+            if (gDisplaySleepMode == 0) {
+                if (last_displayMode != gDisplaySleepMode) {
+                    hal_gpio_set_output(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_DATA_HIGH);
+                    last_displayMode = gDisplaySleepMode;
+                }
+                set7seg(r_time.rtc_hour, r_time.rtc_min);
+            } else {
+                if (last_displayMode != gDisplaySleepMode) {
+                    hal_gpio_set_output(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_DATA_LOW);
+                    last_displayMode = gDisplaySleepMode;
+                }
+            }
         }
         // wait 0.5 sec and retry
         vTaskDelay(MS2TICK(500));
@@ -526,42 +538,44 @@ static void main_task(void *args)
 
 static void gpio_table_init(void)
 {
-    hal_gpio_init(HAL_GPIO_36);
-    hal_pinmux_set_function(HAL_GPIO_36, HAL_GPIO_36_UART2_RX_CM4);
-    hal_gpio_init(HAL_GPIO_37);
-    hal_pinmux_set_function(HAL_GPIO_37, HAL_GPIO_37_UART2_TX_CM4);
+    hal_gpio_init(DFPLAYER_UART_RX);
+    hal_pinmux_set_function(DFPLAYER_UART_RX, HAL_GPIO_36_UART2_RX_CM4);
+    hal_gpio_init(DFPLAYER_UART_TX);
+    hal_pinmux_set_function(DFPLAYER_UART_TX, HAL_GPIO_37_UART2_TX_CM4);
 
-    hal_gpio_init(HAL_GPIO_27);
-    hal_pinmux_set_function(HAL_GPIO_27, HAL_GPIO_27_I2C1_CLK);
-    hal_gpio_init(HAL_GPIO_28);
-    hal_pinmux_set_function(HAL_GPIO_28, HAL_GPIO_28_I2C1_DATA);
+    hal_gpio_init(IO_EXP_I2C_CLK);
+    hal_pinmux_set_function(IO_EXP_I2C_CLK, HAL_GPIO_27_I2C1_CLK);
+    hal_gpio_init(IO_EXP_I2C_DATA);
+    hal_pinmux_set_function(IO_EXP_I2C_DATA, HAL_GPIO_28_I2C1_DATA);
 
     //sec led
-    hal_gpio_init(HAL_GPIO_32);
-    hal_pinmux_set_function(HAL_GPIO_32, HAL_GPIO_32_GPIO32);
-    hal_gpio_set_direction(HAL_GPIO_32, HAL_GPIO_DIRECTION_OUTPUT);
-    hal_gpio_set_output(HAL_GPIO_32, HAL_GPIO_DATA_LOW);
+    hal_gpio_init(SEC_LED_PIN);
+    hal_pinmux_set_function(SEC_LED_PIN, HAL_GPIO_32_GPIO32);
+    hal_gpio_set_direction(SEC_LED_PIN, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(SEC_LED_PIN, HAL_GPIO_DATA_LOW);
     //nixie power switch
-    hal_gpio_init(HAL_GPIO_29);
-    hal_pinmux_set_function(HAL_GPIO_29, HAL_GPIO_29_GPIO29);
-    hal_gpio_set_direction(HAL_GPIO_29, HAL_GPIO_DIRECTION_OUTPUT);
-    hal_gpio_set_output(HAL_GPIO_29, HAL_GPIO_DATA_HIGH);
+    hal_gpio_init(NIXIE_POWER_SWITCH_PIN);
+    hal_pinmux_set_function(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_29_GPIO29);
+    hal_gpio_set_direction(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_DATA_HIGH);
     //back light led power switch
-    hal_gpio_init(HAL_GPIO_30);
-    hal_pinmux_set_function(HAL_GPIO_30, HAL_GPIO_30_GPIO30);
-    hal_gpio_set_direction(HAL_GPIO_30, HAL_GPIO_DIRECTION_OUTPUT);
-    hal_gpio_set_output(HAL_GPIO_30, HAL_GPIO_DATA_HIGH);
+    hal_gpio_init(BACKLIGHT_LED_PIN);
+    hal_pinmux_set_function(BACKLIGHT_LED_PIN, HAL_GPIO_31_GPIO31);
+    hal_gpio_set_direction(BACKLIGHT_LED_PIN, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(BACKLIGHT_LED_PIN, HAL_GPIO_DATA_HIGH);
     //indicator led power switch
-    hal_gpio_init(HAL_GPIO_31);
-    hal_pinmux_set_function(HAL_GPIO_31, HAL_GPIO_31_GPIO31);
-    hal_gpio_set_direction(HAL_GPIO_31, HAL_GPIO_DIRECTION_OUTPUT);
-    hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
+    hal_gpio_init(INDICATE_LED_PIN);
+    hal_pinmux_set_function(INDICATE_LED_PIN, HAL_GPIO_30_GPIO30);
+    hal_gpio_set_direction(INDICATE_LED_PIN, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_LOW);
 
     //touch sensing
-    hal_gpio_init(HAL_GPIO_0);
-    hal_pinmux_set_function(HAL_GPIO_0, HAL_GPIO_0_GPIO0);
-    hal_gpio_init(HAL_GPIO_39);
-    hal_pinmux_set_function(HAL_GPIO_39, HAL_GPIO_39_GPIO39);
+    hal_gpio_init(TOUCH_BTN_POWER_SWITCH_PIN);
+    hal_pinmux_set_function(TOUCH_BTN_POWER_SWITCH_PIN, HAL_GPIO_0_GPIO0);
+    hal_gpio_set_direction(TOUCH_BTN_POWER_SWITCH_PIN, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_init(TOUCH_BTN_INPUT_PIN);
+    hal_pinmux_set_function(TOUCH_BTN_INPUT_PIN, HAL_GPIO_39_GPIO39);
+    hal_gpio_set_direction(TOUCH_BTN_INPUT_PIN, HAL_GPIO_DIRECTION_INPUT);
 }
 
 /* Private variables ---------------------------------------------------------*/
@@ -741,18 +755,15 @@ volatile uint8_t gTouched;
 #define TOUCH_COUNTDOWN (10000)
 void touch_button_task(void* args)
 {
-    hal_gpio_set_direction(HAL_GPIO_0, HAL_GPIO_DIRECTION_OUTPUT);
-    hal_gpio_set_direction(HAL_GPIO_39, HAL_GPIO_DIRECTION_INPUT);
-
     uint32_t counter = 0;
     uint32_t threshold = 3000;
     uint32_t countdown = TOUCH_COUNTDOWN;
     hal_gpio_data_t goal = HAL_GPIO_DATA_HIGH;
     hal_gpio_data_t now;
-    hal_gpio_set_output(HAL_GPIO_0, goal);
+    hal_gpio_set_output(TOUCH_BTN_POWER_SWITCH_PIN, goal);
 
     while(1) {
-        hal_gpio_get_input(HAL_GPIO_39, &now);
+        hal_gpio_get_input(TOUCH_BTN_INPUT_PIN, &now);
         if (now != goal) {
             counter++;
         }
@@ -761,10 +772,10 @@ void touch_button_task(void* args)
             LOG_I(main, "touch count: %d\n", counter);
             if (counter > threshold) {
                 gTouched = 1;
-                hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_HIGH);
+                hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_HIGH);
             } else {
                 gTouched = 0;
-                hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
+                hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_LOW);
             }
 
             if (goal == HAL_GPIO_DATA_LOW) {
@@ -772,7 +783,7 @@ void touch_button_task(void* args)
             } else {
                 goal = HAL_GPIO_DATA_LOW;
             }
-            hal_gpio_set_output(HAL_GPIO_0, goal);
+            hal_gpio_set_output(TOUCH_BTN_POWER_SWITCH_PIN, goal);
             countdown = TOUCH_COUNTDOWN;
             counter = 0;
         }
@@ -808,6 +819,7 @@ int main(void)
     gBLE_BroadcastNotiIndication = NULL;
     gBLE_WifiConnectedNotiIndication = NULL;
     gCurrentTrack = 0;
+    gDisplaySleepMode = 0;
     gTouched = 0;
     nvdmStatus = nvdm_init();
     //if (nvdmStatus == NVDM_STATUS_OK) {
