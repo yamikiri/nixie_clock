@@ -123,7 +123,7 @@ void queryTotalTracks(void)
 //        .checksumLSB = 0xF0,
         .endByte = 0xef
     };
-    inst.checksumLSB = DEFAULT_SDCARD_MP3_FOLDER_NAME;
+    inst.paraLSB = DEFAULT_SDCARD_MP3_FOLDER_NAME;
     calculateChecksum(&inst);
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
 }

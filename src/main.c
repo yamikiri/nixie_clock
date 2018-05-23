@@ -545,12 +545,14 @@ static void _sntp_check_loop(void)
             if (gDisplaySleepMode == 0) {
                 if (last_displayMode != gDisplaySleepMode) {
                     hal_gpio_set_output(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_DATA_HIGH);
+                    hal_gpio_set_output(BACKLIGHT_LED_PIN, HAL_GPIO_DATA_HIGH);
                     last_displayMode = gDisplaySleepMode;
                 }
                 set7seg(r_time.rtc_hour, r_time.rtc_min);
             } else {
                 if (last_displayMode != gDisplaySleepMode) {
                     hal_gpio_set_output(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_DATA_LOW);
+                    hal_gpio_set_output(BACKLIGHT_LED_PIN, HAL_GPIO_DATA_LOW);
                     last_displayMode = gDisplaySleepMode;
                 }
             }
