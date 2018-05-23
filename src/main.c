@@ -755,6 +755,7 @@ volatile uint8_t gTouched;
 #define TOUCH_COUNTDOWN (10000)
 void touch_button_task(void* args)
 {
+    #if 0
     uint32_t counter = 0;
     uint32_t threshold = 3000;
     uint32_t countdown = TOUCH_COUNTDOWN;
@@ -790,6 +791,26 @@ void touch_button_task(void* args)
         countdown--;
         // vTaskDelay(US2TICK(1));
     }
+    #else
+    hal_gpio_data_t now;
+    while(1) {
+        if (gTouched == 1) {
+            hal_gpio_set_output(TOUCH_BTN_POWER_SWITCH_PIN, HAL_GPIO_DATA_LOW);
+            vTaskDelay(MS2TICK(10));
+            hal_gpio_set_output(TOUCH_BTN_POWER_SWITCH_PIN, HAL_GPIO_DATA_HIGH);
+            vTaskDelay(MS2TICK(100));
+        }
+        hal_gpio_get_input(TOUCH_BTN_INPUT_PIN, &now);
+        if (now == HAL_GPIO_DATA_HIGH) {
+            gTouched = 1;
+            hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_HIGH);
+        } else {
+            gTouched = 0;
+            hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_LOW);
+        }
+        vTaskDelay(MS2TICK(400));
+    }
+    #endif
 }
 
 /**
@@ -821,6 +842,7 @@ int main(void)
     gCurrentTrack = 0;
     gDisplaySleepMode = 0;
     gTouched = 0;
+    hal_gpio_set_output(TOUCH_BTN_POWER_SWITCH_PIN, HAL_GPIO_DATA_HIGH);
     nvdmStatus = nvdm_init();
     //if (nvdmStatus == NVDM_STATUS_OK) {
         uint8_t dirtyflag = 0;
@@ -900,7 +922,7 @@ int main(void)
 	xTaskCreate(main_task, "main task", 1024, NULL, 1, NULL);
     xTaskCreate(DFPlayerTask, "DFPlayerUart Task", 1024, NULL, 1, NULL);
     xTaskCreate(bt_notification_task, "BLE Notification Task", 1024, NULL, 1, NULL);
-    // xTaskCreate(touch_button_task, "Touch button detection Task", 1024, NULL, 1, NULL);
+    xTaskCreate(touch_button_task, "Touch button detection Task", 1024, NULL, 1, NULL);
 
 
     /* Call this function to indicate the system initialize done. */
