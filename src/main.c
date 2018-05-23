@@ -414,8 +414,8 @@ time_t hal_time_to_time_t(hal_rtc_time_t *t)
 {
     struct tm _tm;
     time_t ret;
-    _tm.tm_year = t->rtc_year + (CURR_CENTURY-1900);
-    _tm.tm_mon = t->rtc_mon-1;
+    _tm.tm_year = t->rtc_year;
+    _tm.tm_mon = t->rtc_mon;
     _tm.tm_mday = t->rtc_day;
     _tm.tm_wday = t->rtc_week;
     _tm.tm_hour = t->rtc_hour;
@@ -438,7 +438,6 @@ static void _timezone_shift(hal_rtc_time_t* t, int offset_hour)
     gt.tm_min = t->rtc_min;
     gt.tm_sec = t->rtc_sec;
     secs = mktime(&gt);
-    secs = hal_time_to_time_t(t);
     secs += offset_hour * 3600;
     nt = gmtime(&secs);
     if (!nt) {
@@ -508,7 +507,7 @@ uint8_t isTimeDiffLargerThan(hal_rtc_time_t *a, hal_rtc_time_t *b, uint8_t diffM
     time_a = hal_time_to_time_t(a);
     time_b = hal_time_to_time_t(b);
     diff = diffMin * 60;
-    if ((a - b) >= diff)
+    if ((time_a - time_b) >= diff)
         return 1;
     return 0;
 }
