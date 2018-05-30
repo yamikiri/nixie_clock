@@ -73,7 +73,7 @@
 #define FIX_DIGI_1                    (1 << 1)
 #define FIX_DIGI_2                    (1 << 2)
 #define FIX_DIGI_3                    (1 << 3)
-#define NIXIE_PCB_FIX                 (FIX_DIGI_0 /*| FIX_DIGI_1 | FIX_DIGI_2 | FIX_DIGI_3*/)
+#define NIXIE_PCB_FIX                 (FIX_DIGI_0 | FIX_DIGI_1 | FIX_DIGI_2 | FIX_DIGI_3)
 
 typedef struct _task_enables {
     unsigned short broadcast;
@@ -110,8 +110,8 @@ typedef struct _clock_configurations {
 
 #define NVDM_GRP "NIXIE_CLOCK"
 #define NVDM_GLOBAL_CONFIG "GLOBAL_CONFIGS"
-#define NVDM_DEFAULT_SSID "solidyear_B10"
-#define NVDM_DEFAULT_PWD "B10trumP"
+#define NVDM_DEFAULT_SSID "cvlab_279"
+#define NVDM_DEFAULT_PWD "cvlab123"
 
 extern volatile clock_configurations gConfig;
 extern volatile notification_tasklet gNotiTasklet;
