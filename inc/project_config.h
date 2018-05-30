@@ -110,14 +110,15 @@ typedef struct _clock_configurations {
 
 #define NVDM_GRP "NIXIE_CLOCK"
 #define NVDM_GLOBAL_CONFIG "GLOBAL_CONFIGS"
-#define NVDM_DEFAULT_SSID "cvlab_279"
-#define NVDM_DEFAULT_PWD "cvlab123"
+#define NVDM_DEFAULT_SSID "ssid"
+#define NVDM_DEFAULT_PWD "password"
 
 extern volatile clock_configurations gConfig;
 extern volatile notification_tasklet gNotiTasklet;
 extern char volatile gTimeStringCache[20];
 extern volatile void* gBLE_BroadcastNotiIndication;
 extern volatile void* gBLE_WifiConnectedNotiIndication;
+extern volatile uint8_t gTouched;
 
 void send_DFPlayerCmd(uint8_t *cmd, int32_t cmdLen);
 

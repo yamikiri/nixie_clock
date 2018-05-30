@@ -556,6 +556,12 @@ static void gpio_table_init(void)
     hal_pinmux_set_function(HAL_GPIO_31, HAL_GPIO_31_GPIO31);
     hal_gpio_set_direction(HAL_GPIO_31, HAL_GPIO_DIRECTION_OUTPUT);
     hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
+
+    //touch sensing
+    hal_gpio_init(HAL_GPIO_0);
+    hal_pinmux_set_function(HAL_GPIO_0, HAL_GPIO_0_GPIO0);
+    hal_gpio_init(HAL_GPIO_39);
+    hal_pinmux_set_function(HAL_GPIO_39, HAL_GPIO_39_GPIO39);
 }
 
 /* Private variables ---------------------------------------------------------*/
@@ -731,6 +737,50 @@ void bt_notification_task(void* args)
     }
 }
 
+volatile uint8_t gTouched;
+#define TOUCH_COUNTDOWN (10000)
+void touch_button_task(void* args)
+{
+    hal_gpio_set_direction(HAL_GPIO_0, HAL_GPIO_DIRECTION_OUTPUT);
+    hal_gpio_set_direction(HAL_GPIO_39, HAL_GPIO_DIRECTION_INPUT);
+
+    uint32_t counter = 0;
+    uint32_t threshold = 3000;
+    uint32_t countdown = TOUCH_COUNTDOWN;
+    hal_gpio_data_t goal = HAL_GPIO_DATA_HIGH;
+    hal_gpio_data_t now;
+    hal_gpio_set_output(HAL_GPIO_0, goal);
+
+    while(1) {
+        hal_gpio_get_input(HAL_GPIO_39, &now);
+        if (now != goal) {
+            counter++;
+        }
+
+        if (countdown == 0) {
+            LOG_I(main, "touch count: %d\n", counter);
+            if (counter > threshold) {
+                gTouched = 1;
+                hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_HIGH);
+            } else {
+                gTouched = 0;
+                hal_gpio_set_output(HAL_GPIO_31, HAL_GPIO_DATA_LOW);
+            }
+
+            if (goal == HAL_GPIO_DATA_LOW) {
+                goal = HAL_GPIO_DATA_HIGH;
+            } else {
+                goal = HAL_GPIO_DATA_LOW;
+            }
+            hal_gpio_set_output(HAL_GPIO_0, goal);
+            countdown = TOUCH_COUNTDOWN;
+            counter = 0;
+        }
+        countdown--;
+        // vTaskDelay(US2TICK(1));
+    }
+}
+
 /**
 * @brief       Main function
 * @param[in]   None.
@@ -758,6 +808,7 @@ int main(void)
     gBLE_BroadcastNotiIndication = NULL;
     gBLE_WifiConnectedNotiIndication = NULL;
     gCurrentTrack = 0;
+    gTouched = 0;
     nvdmStatus = nvdm_init();
     //if (nvdmStatus == NVDM_STATUS_OK) {
         uint8_t dirtyflag = 0;
@@ -837,6 +888,7 @@ int main(void)
 	xTaskCreate(main_task, "main task", 1024, NULL, 1, NULL);
     xTaskCreate(DFPlayerTask, "DFPlayerUart Task", 1024, NULL, 1, NULL);
     xTaskCreate(bt_notification_task, "BLE Notification Task", 1024, NULL, 1, NULL);
+    xTaskCreate(touch_button_task, "Touch button detection Task", 1024, NULL, 1, NULL);
 
 
     /* Call this function to indicate the system initialize done. */
