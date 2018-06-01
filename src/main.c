@@ -539,42 +539,42 @@ static void main_task(void *args)
 static void gpio_table_init(void)
 {
     hal_gpio_init(DFPLAYER_UART_RX);
-    hal_pinmux_set_function(DFPLAYER_UART_RX, HAL_GPIO_36_UART2_RX_CM4);
+    hal_pinmux_set_function(DFPLAYER_UART_RX, DFPLAYER_UART_RX_MUX);
     hal_gpio_init(DFPLAYER_UART_TX);
-    hal_pinmux_set_function(DFPLAYER_UART_TX, HAL_GPIO_37_UART2_TX_CM4);
+    hal_pinmux_set_function(DFPLAYER_UART_TX, DFPLAYER_UART_TX_MUX);
 
     hal_gpio_init(IO_EXP_I2C_CLK);
-    hal_pinmux_set_function(IO_EXP_I2C_CLK, HAL_GPIO_27_I2C1_CLK);
+    hal_pinmux_set_function(IO_EXP_I2C_CLK, IO_EXP_I2C_CLK_MUX);
     hal_gpio_init(IO_EXP_I2C_DATA);
-    hal_pinmux_set_function(IO_EXP_I2C_DATA, HAL_GPIO_28_I2C1_DATA);
+    hal_pinmux_set_function(IO_EXP_I2C_DATA, IO_EXP_I2C_DATA_MUX);
 
     //sec led
     hal_gpio_init(SEC_LED_PIN);
-    hal_pinmux_set_function(SEC_LED_PIN, HAL_GPIO_32_GPIO32);
+    hal_pinmux_set_function(SEC_LED_PIN, SEC_LED_PIN_MUX);
     hal_gpio_set_direction(SEC_LED_PIN, HAL_GPIO_DIRECTION_OUTPUT);
     hal_gpio_set_output(SEC_LED_PIN, HAL_GPIO_DATA_LOW);
     //nixie power switch
     hal_gpio_init(NIXIE_POWER_SWITCH_PIN);
-    hal_pinmux_set_function(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_29_GPIO29);
+    hal_pinmux_set_function(NIXIE_POWER_SWITCH_PIN, NIXIE_POWER_SWITCH_PIN_MUX);
     hal_gpio_set_direction(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_DIRECTION_OUTPUT);
     hal_gpio_set_output(NIXIE_POWER_SWITCH_PIN, HAL_GPIO_DATA_HIGH);
     //back light led power switch
     hal_gpio_init(BACKLIGHT_LED_PIN);
-    hal_pinmux_set_function(BACKLIGHT_LED_PIN, HAL_GPIO_31_GPIO31);
+    hal_pinmux_set_function(BACKLIGHT_LED_PIN, BACKLIGHT_LED_PIN_MUX);
     hal_gpio_set_direction(BACKLIGHT_LED_PIN, HAL_GPIO_DIRECTION_OUTPUT);
     hal_gpio_set_output(BACKLIGHT_LED_PIN, HAL_GPIO_DATA_HIGH);
     //indicator led power switch
     hal_gpio_init(INDICATE_LED_PIN);
-    hal_pinmux_set_function(INDICATE_LED_PIN, HAL_GPIO_30_GPIO30);
+    hal_pinmux_set_function(INDICATE_LED_PIN, INDICATE_LED_PIN_MUX);
     hal_gpio_set_direction(INDICATE_LED_PIN, HAL_GPIO_DIRECTION_OUTPUT);
     hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_LOW);
 
     //touch sensing
     hal_gpio_init(TOUCH_BTN_POWER_SWITCH_PIN);
-    hal_pinmux_set_function(TOUCH_BTN_POWER_SWITCH_PIN, HAL_GPIO_0_GPIO0);
+    hal_pinmux_set_function(TOUCH_BTN_POWER_SWITCH_PIN, TOUCH_BTN_POWER_SWITCH_PIN_MUX);
     hal_gpio_set_direction(TOUCH_BTN_POWER_SWITCH_PIN, HAL_GPIO_DIRECTION_OUTPUT);
     hal_gpio_init(TOUCH_BTN_INPUT_PIN);
-    hal_pinmux_set_function(TOUCH_BTN_INPUT_PIN, HAL_GPIO_39_GPIO39);
+    hal_pinmux_set_function(TOUCH_BTN_INPUT_PIN, TOUCH_BTN_INPUT_PIN_MUX);
     hal_gpio_set_direction(TOUCH_BTN_INPUT_PIN, HAL_GPIO_DIRECTION_INPUT);
 }
 
@@ -900,7 +900,7 @@ int main(void)
 	xTaskCreate(main_task, "main task", 1024, NULL, 1, NULL);
     xTaskCreate(DFPlayerTask, "DFPlayerUart Task", 1024, NULL, 1, NULL);
     xTaskCreate(bt_notification_task, "BLE Notification Task", 1024, NULL, 1, NULL);
-    xTaskCreate(touch_button_task, "Touch button detection Task", 1024, NULL, 1, NULL);
+    // xTaskCreate(touch_button_task, "Touch button detection Task", 1024, NULL, 1, NULL);
 
 
     /* Call this function to indicate the system initialize done. */
