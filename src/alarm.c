@@ -15,6 +15,8 @@
 
 log_create_module(alarm, PRINT_LEVEL_INFO);
 
+volatile uint8_t gAlarmMode;
+
 void checkAlarm(hal_rtc_time_t* t)
 {
     ;

@@ -96,6 +96,9 @@
 #define FIX_DIGI_3                    (1 << 3)
 #define NIXIE_PCB_FIX                 (FIX_DIGI_0 | FIX_DIGI_1 | FIX_DIGI_2 | FIX_DIGI_3)
 
+/* Each time showed period, after the period, tube will go to sleep, unit is minutes */
+#define WAKEUP_PERIOD                 (5)
+
 typedef struct _task_enables {
     unsigned short broadcast;
     unsigned short wifiReady;
@@ -106,6 +109,11 @@ typedef struct _notification_tasklet {
     unsigned short conn_handle;
     task_enables enables;
 } notification_tasklet;
+
+enum {
+    AlarmTypeOneshot = 0,
+    AlarmTypeRepeat
+};
 
 typedef struct _alarm_config {
     unsigned char AlarmEnable;
@@ -140,8 +148,13 @@ extern char volatile gTimeStringCache[20];
 extern volatile void* gBLE_BroadcastNotiIndication;
 extern volatile void* gBLE_WifiConnectedNotiIndication;
 extern volatile uint8_t gTouched;
+extern volatile hal_rtc_time_t gLastTouchTime;
 extern volatile uint8_t gDisplaySleepMode;
+extern volatile uint8_t gAlarmMode;
 
 void send_DFPlayerCmd(uint8_t *cmd, int32_t cmdLen);
+
+/* Common utilities */
+time_t hal_time_to_time_t(hal_rtc_time_t *t);
 
 #endif

@@ -410,6 +410,21 @@ static void pcf8574_write(uint8_t high, uint8_t low)
     hal_i2c_master_deinit(i2c_port);
 }
 
+time_t hal_time_to_time_t(hal_rtc_time_t *t)
+{
+    struct tm _tm;
+    time_t ret;
+    _tm.tm_year = t->rtc_year + (CURR_CENTURY-1900);
+    _tm.tm_mon = t->rtc_mon-1;
+    _tm.tm_mday = t->rtc_day;
+    _tm.tm_wday = t->rtc_week;
+    _tm.tm_hour = t->rtc_hour;
+    _tm.tm_min = t->rtc_min;
+    _tm.tm_sec = t->rtc_sec;
+    ret = mktime(&_tm);
+    return ret;
+}
+
 static void _timezone_shift(hal_rtc_time_t* t, int offset_hour)
 {
     struct tm gt;
@@ -423,6 +438,7 @@ static void _timezone_shift(hal_rtc_time_t* t, int offset_hour)
     gt.tm_min = t->rtc_min;
     gt.tm_sec = t->rtc_sec;
     secs = mktime(&gt);
+    secs = hal_time_to_time_t(t);
     secs += offset_hour * 3600;
     nt = gmtime(&secs);
     if (!nt) {
@@ -485,13 +501,26 @@ static void set7seg(uint8_t h, uint8_t m)
     }
 #endif
 }
+
+uint8_t isTimeDiffLargerThan(hal_rtc_time_t *a, hal_rtc_time_t *b, uint8_t diffMin)
+{
+    time_t time_a, time_b, diff;
+    time_a = hal_time_to_time_t(a);
+    time_b = hal_time_to_time_t(b);
+    diff = diffMin * 60;
+    if ((a - b) >= diff)
+        return 1;
+    return 0;
+}
+
 volatile uint8_t gDisplaySleepMode;
 static void _sntp_check_loop(void)
 {
-    static uint8_t last_min = 255;
-    static uint8_t last_displayMode = 1;
+    uint8_t last_min = 255;
+    uint8_t last_displayMode = 1;
     hal_rtc_time_t r_time;
     hal_rtc_status_t ret;
+    uint8_t dispFlag;
 
     while(1) {
         ret = hal_rtc_get_time(&r_time);
@@ -505,6 +534,13 @@ static void _sntp_check_loop(void)
                 LOG_I(main, "%s", gTimeStringCache);
                 checkAlarm(&r_time);
                 last_min = r_time.rtc_min;
+            }
+
+            dispFlag = isTimeDiffLargerThan(&r_time, &gLastTouchTime, WAKEUP_PERIOD);
+            if (dispFlag == 0 || gAlarmMode == 1) {
+                gDisplaySleepMode = 0;
+            } else if (dispFlag > 0) {
+                gDisplaySleepMode = 1;
             }
             if (gDisplaySleepMode == 0) {
                 if (last_displayMode != gDisplaySleepMode) {
@@ -752,6 +788,7 @@ void bt_notification_task(void* args)
 }
 
 volatile uint8_t gTouched;
+volatile hal_rtc_time_t gLastTouchTime;
 #define TOUCH_COUNTDOWN (10000)
 void touch_button_task(void* args)
 {
@@ -793,6 +830,7 @@ void touch_button_task(void* args)
     }
     #else
     hal_gpio_data_t now;
+    uint8_t lastTouchStatus = 0;
     while(1) {
         if (gTouched == 1) {
             hal_gpio_set_output(TOUCH_BTN_POWER_SWITCH_PIN, HAL_GPIO_DATA_LOW);
@@ -805,9 +843,14 @@ void touch_button_task(void* args)
             gTouched = 1;
             hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_HIGH);
         } else {
+            if (lastTouchStatus == 1) {
+                hal_rtc_get_time(&gLastTouchTime);
+                _timezone_shift(&gLastTouchTime, gConfig.timeZone);
+            }
             gTouched = 0;
             hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_LOW);
         }
+        lastTouchStatus = gTouched;
         vTaskDelay(MS2TICK(400));
     }
     #endif
@@ -842,6 +885,7 @@ int main(void)
     gCurrentTrack = 0;
     gDisplaySleepMode = 0;
     gTouched = 0;
+    gAlarmMode = 0;
     hal_gpio_set_output(TOUCH_BTN_POWER_SWITCH_PIN, HAL_GPIO_DATA_HIGH);
     nvdmStatus = nvdm_init();
     //if (nvdmStatus == NVDM_STATUS_OK) {
@@ -922,6 +966,9 @@ int main(void)
 	xTaskCreate(main_task, "main task", 1024, NULL, 1, NULL);
     xTaskCreate(DFPlayerTask, "DFPlayerUart Task", 1024, NULL, 1, NULL);
     xTaskCreate(bt_notification_task, "BLE Notification Task", 1024, NULL, 1, NULL);
+
+    hal_rtc_get_time(&gLastTouchTime);
+    _timezone_shift(&gLastTouchTime, gConfig.timeZone);
     xTaskCreate(touch_button_task, "Touch button detection Task", 1024, NULL, 1, NULL);
 
 
