@@ -20,11 +20,14 @@ typedef struct _dfplayer_instruct {
 
 void playback(void);
 void specifyTrackId(uint16_t trackId);
+void specifyTrackIdRepeat(uint16_t trackId);
 void specifySD(void);
 void specifyVolume(uint8_t vol);
 void queryTotalTracks(void);
 void DFPlayerReset(void);
 void queryOnlineStatus(void);
+void setRepeatMode(uint8_t en);
+void stopPlayback(void);
 
 void responseParser(uint8_t* resp);
 

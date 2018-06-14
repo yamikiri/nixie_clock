@@ -46,7 +46,7 @@ void specifyTrackId(uint16_t trackId)
         .startByte = 0x7e,
         .version = 0xff,
         .length = 6,
-        .cmd = 0x03,
+        .cmd = 0x14,
         .feedback = 0,
         .paraMSB = 0,
         .paraLSB = 0,
@@ -56,9 +56,57 @@ void specifyTrackId(uint16_t trackId)
     };
     inst.paraMSB = (trackId & 0xFF00) >> 8;
     inst.paraLSB = trackId & 0xFF;
+    inst.paraMSB = inst.paraMSB | (DEFAULT_SDCARD_MP3_FOLDER_NAME << 4);
     calculateChecksum(&inst);
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
     gCurrentTrack = trackId;
+}
+
+void setRepeatMode(uint8_t en)
+{
+    dfplayer_instrction inst = {
+        .startByte = 0x7e,
+        .version = 0xff,
+        .length = 6,
+        .cmd = 0x19,
+        .feedback = 0,
+        .paraMSB = 0,
+        .paraLSB = 0,
+//        .checksumMSB = 0xFE,
+//        .checksumLSB = 0xF0,
+        .endByte = 0xef
+    };
+    inst.paraLSB = (en == 0)?1:0;
+    calculateChecksum(&inst);
+    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
+}
+
+void specifyTrackIdRepeat(uint16_t trackId)
+{
+    setRepeatMode(1);
+    vTaskDelay(MS2TICK(10));
+    specifyTrackId(trackId);
+}
+
+void stopPlayback(void)
+{
+    dfplayer_instrction inst = {
+        .startByte = 0x7e,
+        .version = 0xff,
+        .length = 6,
+        .cmd = 0x16,
+        .feedback = 0,
+        .paraMSB = 0,
+        .paraLSB = 0,
+//        .checksumMSB = 0xFE,
+//        .checksumLSB = 0xF0,
+        .endByte = 0xef
+    };
+    calculateChecksum(&inst);
+    send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
+    vTaskDelay(MS2TICK(10));
+    setRepeatMode(0);
+    gCurrentTrack = -1;
 }
 
 void queryTotalTracks(void)
@@ -67,7 +115,7 @@ void queryTotalTracks(void)
         .startByte = 0x7e,
         .version = 0xff,
         .length = 6,
-        .cmd = 0x48,
+        .cmd = 0x4E,
         .feedback = 0,
         .paraMSB = 0,
         .paraLSB = 0,
@@ -75,6 +123,7 @@ void queryTotalTracks(void)
 //        .checksumLSB = 0xF0,
         .endByte = 0xef
     };
+    inst.checksumLSB = DEFAULT_SDCARD_MP3_FOLDER_NAME;
     calculateChecksum(&inst);
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
 }
@@ -104,7 +153,7 @@ void playback(void)
         .startByte = 0x7e,
         .version = 0xff,
         .length = 6,
-        .cmd = 0x0D,
+        .cmd = 0x0F,
         .feedback = 0,
         .paraMSB = 0,
         .paraLSB = 0,
@@ -112,6 +161,7 @@ void playback(void)
 //        .checksumLSB = 0xEE,
         .endByte = 0xef
     };
+    inst.paraLSB = DEFAULT_SDCARD_MP3_FOLDER_NAME;
     calculateChecksum(&inst);
     send_DFPlayerCmd((uint8_t *)&inst, sizeof(inst));
 }
@@ -159,7 +209,7 @@ void responseParser(uint8_t* resp)
     static uint8_t a3cnt = 0;
     dfplayer_instrction *inst = (dfplayer_instrction *)resp;
     switch (inst->cmd) {
-    case 0x48:
+    case 0x4E:
         gTotalTracks = inst->paraMSB << 8 | inst->paraLSB;
         LOG_I(dfplayer, "total tracks: %d", gTotalTracks);
         break;
@@ -176,6 +226,14 @@ void responseParser(uint8_t* resp)
         break;
     case 0x3B:
         gTotalTracks = 0;
+        break;
+    case 0x3C:
+    case 0x3D:
+        setRepeatMode(0);
+        gCurrentTrack = -1;
+        if (gAlarmMode == 1) {
+            gAlarmMode = 0;
+        }
         break;
     };
 }

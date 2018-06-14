@@ -850,6 +850,12 @@ void touch_button_task(void* args)
             gTouched = 0;
             hal_gpio_set_output(INDICATE_LED_PIN, HAL_GPIO_DATA_LOW);
         }
+
+        if (gTouched == 1) {
+            if ((lastTouchStatus == 0) && (gAlarmMode == 1)) {
+                stopPlayback();
+            }
+        }
         lastTouchStatus = gTouched;
         vTaskDelay(MS2TICK(400));
     }

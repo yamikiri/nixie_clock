@@ -90,6 +90,8 @@
 #define CLOCK_CONFIG_VERSION          (4)
 #define MAX_AMOUNT_ALARMS             (3)
 
+#define DEFAULT_SDCARD_MP3_FOLDER_NAME (7)
+
 #define FIX_DIGI_0                    (1 << 0)
 #define FIX_DIGI_1                    (1 << 1)
 #define FIX_DIGI_2                    (1 << 2)
@@ -113,6 +115,11 @@ typedef struct _notification_tasklet {
 enum {
     AlarmTypeOneshot = 0,
     AlarmTypeRepeat
+};
+
+enum {
+    AlarmMusicOneshot = 0,
+    AlarmMusicRepeat
 };
 
 typedef struct _alarm_config {
