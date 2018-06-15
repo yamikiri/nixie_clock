@@ -99,7 +99,7 @@
 #define NIXIE_PCB_FIX                 (FIX_DIGI_0 | FIX_DIGI_1 | FIX_DIGI_2 | FIX_DIGI_3)
 
 /* Each time showed period, after the period, tube will go to sleep, unit is minutes */
-#define WAKEUP_PERIOD                 (5)
+#define WAKEUP_PERIOD                 (3)
 
 typedef struct _task_enables {
     unsigned short broadcast;

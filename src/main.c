@@ -705,7 +705,28 @@ static void initializeGlobalConfiguration(clock_configurations *config)
     memcpy(config->ssid, NVDM_DEFAULT_SSID, strlen(NVDM_DEFAULT_SSID));
     memcpy(config->pwd, NVDM_DEFAULT_PWD, strlen(NVDM_DEFAULT_PWD));
     config->nixieFix = NIXIE_PCB_FIX;
-    config->nAlarms = 0;
+    alarm_config meg = {
+      .AlarmEnable = 0x01,
+      .AlarmType = AlarmTypeRepeat,
+      .AlarmMusicIndex = 0,
+      .AlarmMusicPlayMode = AlarmMusicOneshot,
+      .AlarmSchedule = { 0, 1, 1, 1, 1, 1, 0},
+      .AlarmHour = 7,
+      .AlarmMinute = 0,
+    };
+    memcpy(&(config->alarms[0]), &meg, sizeof(alarm_config));
+    config->nAlarms = 1;
+    /*alarm_config test = {
+      .AlarmEnable = 0x01,
+      .AlarmType = AlarmTypeRepeat,
+      .AlarmMusicIndex = 0,
+      .AlarmMusicPlayMode = AlarmMusicOneshot,
+      .AlarmSchedule = { 0, 1, 1, 1, 1, 1, 0},
+      .AlarmHour = 11,
+      .AlarmMinute = 28,
+    };
+    memcpy(&(config->alarms[1]), &test, sizeof(alarm_config));
+    config->nAlarms = 2;*/
     LOG_I(main, "initialized global configurations.");
 }
 

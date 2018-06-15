@@ -31,9 +31,9 @@ void checkAlarm(hal_rtc_time_t* t)
                 pac->AlarmMinute == t->rtc_min) {
                 if (preAlarmFired == 0) {
                     if (pac->AlarmMusicPlayMode == AlarmMusicOneshot)
-                        specifyTrackId(pac->AlarmMusicIndex);
+                        specifyTrackId(pac->AlarmMusicIndex + 1);
                     else if (pac->AlarmMusicPlayMode == AlarmMusicRepeat)
-                        specifyTrackIdRepeat(pac->AlarmMusicIndex);
+                        specifyTrackIdRepeat(pac->AlarmMusicIndex + 1);
 
                     if (pac->AlarmType == AlarmTypeOneshot) {
                         pac->AlarmEnable = 0;
@@ -42,6 +42,10 @@ void checkAlarm(hal_rtc_time_t* t)
                     gAlarmMode = 1;
                     preAlarmFired = 1;
                 }
+                continue;
+            } else {
+                preAlarmFired = 0;
+                gAlarmMode = 0;
             }
         }
     }
